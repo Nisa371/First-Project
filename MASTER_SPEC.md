@@ -1,7 +1,7 @@
 # Verified Skill & Career Managed Marketplace with Voice-First Accessibility
 
 > Master project specification — permanent source of truth.
-> Version: 1.0 | Module: M0.1 | Date: 2026-09-12
+> Version: 1.1 | Latest module: M0.2 | Date: 2026-09-12
 > Repository: Nisa371/First-Project
 > Implementation status: specification only; no application features implemented.
 
@@ -85,6 +85,21 @@ Real SMS and automated calling are not required to model this workflow correctly
 Candidate type is TECH or TRADE on a shared account foundation. Do not create separate authentication systems for the tracks. Account status, candidate type, verification status, and assessment recommendation are separate concepts.
 
 Training institutes are partner entities managed through administration in the initial scope; a separate institute login role is not required unless later approved. Privileged roles must not be self-assigned through public registration. Employer approval criteria and role-assignment procedures are decisions for the relevant modules.
+
+### Canonical roles and candidate types
+
+Primary roles: CANDIDATE, EMPLOYER, EVALUATOR, ADMIN.
+Candidate types: TECH, TRADE.
+
+> Candidate type is domain classification, not an authentication role.
+
+Both tracks use CANDIDATE and the shared account foundation. The user_roles model may support multiple memberships, while normal MVP onboarding assigns one operational role.
+
+### Core authorization principles
+
+Apply least privilege, backend enforcement, resource ownership/assignment, sensitive-data restrictions, and privileged role assignment. Client-supplied IDs never establish ownership. Account status is independent of role; normal protected actions require ACTIVE. Employers receive safe candidate projections, evaluators receive assigned/relevant data, and administrative operations remain validated and audited. Queue order remains under backend business logic.
+
+The detailed authorization specification, including the permission matrix, conditional rules, role/type changes, and security invariants, is [docs/ROLES_AND_PERMISSIONS.md](docs/ROLES_AND_PERMISSIONS.md). M0.2 defines behavior only; no security implementation is present.
 
 ## 5. Primary user workflows
 
@@ -475,3 +490,4 @@ Future modules should resolve only the decisions they need, record approved chan
 | Version | Module | Change |
 | --- | --- | --- |
 | 1.0 | M0.1 | Initial master specification; documentation only. |
+| 1.1 | M0.2 | Added canonical authorization summary and link to detailed roles/permissions specification; documentation only. |
