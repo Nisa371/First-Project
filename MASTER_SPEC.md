@@ -1,7 +1,7 @@
 # Verified Skill & Career Managed Marketplace with Voice-First Accessibility
 
 > Master project specification — permanent source of truth.
-> Version: 1.5 | Latest module: M0.6 | Date: 2026-09-12
+> Version: 1.6 | Latest module: M1.1 | Date: 2026-09-12
 > Repository: Nisa371/First-Project
 > Implementation status: specification only; no application features implemented.
 
@@ -451,7 +451,7 @@ Successful APIs return typed resource/collection bodies directly. The existing e
 
 Detailed implementation must follow these documents unless an approved future module updates the source of truth. They elaborate the existing roles, workflows and standards; no application code is implemented by M0.5.
 
-M0.1–M0.5 documentation and M0.6 repository baseline are complete. M0 is DONE; M1–M23 remain NOT_STARTED. Roadmap IDs are preserved even where acceptance depends on later prerequisites, notably M12 replacement integration needing M15 placement/lifecycle/coverage; later partial work requires explicit task scope and honest progress tracking.
+M0 and M1.1 workspace preparation are DONE; M1 is IN_PROGRESS. M1.2–M1.5 and M2–M23 remain NOT_STARTED. Roadmap IDs are preserved even where acceptance depends on later prerequisites, notably M12 replacement integration needing M15 placement/lifecycle/coverage; later partial work requires explicit task scope and honest progress tracking.
 
 The database plan retains the 25 core tables and identifies four workflow-supporting relationships (job_skills, shortlist_entries, replacement_offers, booking_notes) for later schema design. Exact SQL/ID strategy, claim enforcement and storage normalization remain deferred. Planned APIs retain the `error` contract and role-specific projections; historical job archival uses explicit actions.
 
@@ -460,6 +460,8 @@ The database plan retains the 25 core tables and identifies four workflow-suppor
 M0.6 adds tracked backend/, frontend/ and scripts/ placeholders alongside docs/, plus a root README, .gitignore, .editorconfig and blank .env.example. Git history and the main branch are preserved. No Spring Boot, React, database, CI or Docker setup is present. Follow [README.md](README.md) for navigation and M0 → M1 handoff, and [development standards](docs/DEVELOPMENT_STANDARDS.md) for conventions. M1.1 refines the existing baseline instead of recreating it.
 
 ## 24. M0.1 definition of done
+
+Current workspace decisions from M1.1: one Git repository, independent backend/frontend roots and shared documentation; internal project identifier `verified-career-marketplace`, backend group/package `com.marketplace`, backend artifact/name `verified-career-marketplace-backend`, frontend package `verified-career-marketplace-frontend`. Planned local ports are 8080/5173. Environment ownership and public health contract are recorded in architecture/API docs. Framework initialization remains M1.2/M1.3; no application source was created by M1.1.
 
 - MASTER_SPEC.md exists at repository root as structured Markdown.
 - Project purpose, TECH/TRADE tracks, roles, and core workflows are recorded.
@@ -508,3 +510,4 @@ Future modules should resolve only the decisions they need, record approved chan
 | 1.3 | M0.4 | Added development standards reference and engineering conventions; documentation only. |
 | 1.4 | M0.5 | Added formal M0–M23 roadmap, architecture, logical database and API documentation references; planning only. |
 | 1.5 | M0.6 | Added repository baseline, README navigation and M0 completion status; no frameworks initialized. |
+| 1.6 | M1.1 | Finalized workspace boundaries, technical identifiers, ports, environment ownership and health plan; no frameworks initialized. |

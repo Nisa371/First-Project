@@ -4,9 +4,9 @@ A planned two-tier managed employment marketplace for Bangladesh, with voice-fir
 
 ## Development status
 
-**Implemented foundation:** M0.1–M0.6 specifications and repository baseline are complete. No application features are implemented. Spring Boot, React and database infrastructure have not been initialized.
+**Current phase:** M1 — Repository & Development Environment. M0 and M1.1 workspace preparation are complete. Spring Boot and React are not initialized; no business features exist.
 
-**Next:** M1.1 — Finalize Development-Ready Monorepo Structure. Reuse the baseline folders; do not recreate or nest another repository.
+**Next:** M1.2 — Initialize Spring Boot Backend.
 
 ## Core tracks and roles
 
@@ -39,16 +39,16 @@ Compatible runtime/framework versions will be selected during setup.
 
 | Path | Current purpose |
 | --- | --- |
-| backend/ | Tracked placeholder; Spring Boot initialization in M1.2 |
-| frontend/ | Tracked placeholder; React/TypeScript/Vite and Tailwind setup in M1.3 |
+| backend/ | [Backend application boundary](backend/README.md); Spring Boot initialization in M1.2 |
+| frontend/ | [Frontend application boundary](frontend/README.md); React initialization in M1.3 |
 | docs/ | Approved detailed specifications |
-| scripts/ | Tracked placeholder; utilities added only when needed |
+| scripts/ | [Project helpers policy](scripts/README.md); utilities added only when needed |
 | MASTER_SPEC.md | Top-level project source of truth |
 | .gitignore | Local secrets, editor state and generated/runtime exclusions |
 | .editorconfig | UTF-8/LF, final newline, spaces; Java 4-space and default 2-space indentation |
 | .env.example | Blank conceptual configuration placeholders only |
 
-Empty skeleton directories use .gitkeep. They contain no source code.
+This simple monorepo contains one backend application, one frontend application and shared documentation in one Git repository. Workspace READMEs replace empty placeholders. There are no root package-manager workspaces or Maven multi-module build. Application-specific configuration and source stay within the corresponding application root.
 
 ## Documentation
 
@@ -65,9 +65,9 @@ Empty skeleton directories use .gitkeep. They contain no source code.
 
 ## Local development and M0 → M1 handoff
 
-There are no runnable frontend/backend commands or demo accounts yet. Do not run framework generators as part of M0.6.
+There are no runnable frontend/backend commands or demo accounts yet. Backend commands will run from `backend/` after M1.2; frontend commands from `frontend/` after M1.3. Planned local addresses are backend `http://localhost:8080` and frontend `http://localhost:5173`; actual environment/CORS configuration belongs to M1.4.
 
-1. M1.1 — Finalize development-ready monorepo boundaries, framework-owned files and tooling layout.
+1. M1.1 — Complete: development-ready monorepo boundaries, framework-owned files and tooling layout.
 2. M1.2 — Initialize Java/Spring Boot/Maven.
 3. M1.3 — Initialize React/TypeScript/Vite and Tailwind.
 4. M1.4 — Establish actual environment variables, loading, profiles and CORS.

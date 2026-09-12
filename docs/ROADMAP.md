@@ -1,6 +1,6 @@
 # Development Roadmap
 
-> M0.6 | Version 1.1 | 2026-09-12 | Roadmap and baseline progress
+> M1.1 | Version 1.2 | 2026-09-12 | Workspace readiness progress
 > Canonical IDs M0–M23 are fixed. No implementation is authorized by this roadmap alone.
 
 ## Authority and progress
@@ -9,7 +9,7 @@ Follow [MASTER_SPEC.md](../MASTER_SPEC.md), [roles](ROLES_AND_PERMISSIONS.md), [
 
 Progress states: NOT_STARTED (no implementation), IN_PROGRESS (active partial work), BLOCKED (named unmet dependency), DONE (deliverable and applicable verification evidenced). Maintain module rows and evidence/remaining work as each task completes. Parent milestone is DONE only when all children are DONE; a mix of completed/future children is IN_PROGRESS.
 
-M0.1–M0.5 documentation was complete at commit 6e8066c. M0.6 adds the verified repository baseline: root README, .gitignore, .editorconfig, blank .env.example, and tracked backend/frontend/scripts placeholders. M0.1–M0.6 and parent M0 are DONE. All M1–M23 remain NOT_STARTED. No application framework or business feature exists.
+M0 is DONE. M1.1 is DONE: workspace READMEs, metadata, file/environment ownership, local port and health plans are documented; redundant placeholders removed. Relative links, Git ignore boundaries and absence of framework/dependency files were checked. M1 is IN_PROGRESS; M1.2–M1.5 and M2–M23 remain NOT_STARTED. No business feature exists.
 
 ## Canonical milestone and submodule register
 
@@ -30,11 +30,11 @@ Acceptance/dependency notes: Evidence: MASTER_SPEC.md, ROLES_AND_PERMISSIONS.md,
 
 ### M1 — Repository & Development Environment
 
-Milestone status: NOT_STARTED.
+Milestone status: IN_PROGRESS.
 
 | ID | Deliverable | Status |
 | --- | --- | --- |
-| M1.1 | Finalize Development-Ready Monorepo Structure | NOT_STARTED |
+| M1.1 | Finalize Development-Ready Monorepo Structure | DONE |
 | M1.2 | Initialize Spring Boot backend | NOT_STARTED |
 | M1.3 | Initialize React frontend | NOT_STARTED |
 | M1.4 | Environment configuration | NOT_STARTED |
@@ -361,7 +361,7 @@ Acceptance/dependency notes: Final responsive/accessibility/Bangla/error/documen
 
 ## Setup boundaries and expected structure
 
-M0.6 established the repository baseline. M1.1 will verify backend/frontend workspace boundaries, define framework-owned files, add local setup notes where needed and prepare cross-project tooling structure. It reuses these folders; it does not initialize a second nested repository or duplicate the skeleton.
+M0.6 established the repository baseline. M1.1 verified backend/frontend workspace boundaries, defined framework-owned files and added local setup notes and helper policy. It reuses these folders without a second nested repository or duplicate skeleton.
 
 The eventual root (called marketplace/ illustratively; existing repository name stays First-Project) contains frontend/, backend/, docs/, scripts/, docker-compose.yml, README.md and MASTER_SPEC.md. Docker Compose is a planned local-development aid under M1, not a service created in M0.5 or an architectural requirement for every deployment.
 
@@ -412,4 +412,4 @@ Arrows show acceptance dependencies, not renumbering. Notification intent and co
 
 Each future task reports module ID, created/modified files, relevant commit/verification, dependencies, assumptions and remaining work. Use the [standards checklist](DEVELOPMENT_STANDARDS.md) and W01–W21 acceptance rules. A schema, UI mock, fixture or TODO does not prove a business workflow complete.
 
-M0.5 evidence is the four cross-referenced documents plus master references. M0.6 is complete with the baseline files and validation described above, not merely because documentation exists. Next is M1.1 refinement, then M1.2 backend, M1.3 frontend, M1.4 environment and M1.5 connectivity verification. M0.6 creates no framework, business code, tests, database infrastructure, CI or Docker services. Stop after M0.6.
+M0 evidence is the specifications and verified baseline. M1.1 adds reviewed workspace boundaries and documentation without initializing frameworks or installing dependencies. Next is M1.2 backend, then M1.3 frontend, M1.4 environment and M1.5 connectivity verification.

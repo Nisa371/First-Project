@@ -15,6 +15,10 @@ IDs in examples are symbolic/illustrative; final ID strategy is deferred. Payloa
 
 ## 2. Planned endpoint catalog
 
+### Infrastructure health (M1.1 plan; implementation in M1.2)
+
+`GET /api/health` is public and returns HTTP 200, `application/json`, with typed body `{"status":"UP"}`. It checks backend availability only; it is not a database readiness or production monitoring guarantee. No credentials, environment or internal configuration are exposed. M1.5 uses it for connectivity verification.
+
 ### Authentication
 
 | Method/path | Access/purpose boundary | Conceptual request | Success response | Major errors |

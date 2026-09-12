@@ -10,6 +10,23 @@ Use a modular monolith: React/TypeScript frontend, REST interface, Java/Spring B
 
 ## 2. System context
 
+### Workspace decisions (M1.1)
+
+One Git repository contains independent `backend/` and `frontend/` applications with shared root documentation and `scripts/` helpers. No root Maven aggregator, npm workspace, Nx, Turborepo or microservice tooling is needed. Framework commands run from their application roots.
+
+| Decision | Value / owner |
+| --- | --- |
+| Internal project identifier | `verified-career-marketplace` |
+| Backend Maven group / Java package root | `com.marketplace` |
+| Backend artifact / application name | `verified-career-marketplace-backend` |
+| Frontend package name | `verified-career-marketplace-frontend` |
+| Local backend / API base | `http://localhost:8080` / `/api` |
+| Local frontend origin | `http://localhost:5173` |
+| Framework setup | M1.2 owns backend Maven/source/dependencies/health/build; M1.3 owns frontend package/config/source/build |
+| Configuration ownership | Backend owns DB/JWT/CORS and FRONTEND_URL; frontend owns public VITE_API_BASE_URL |
+
+Root `.env.example` remains a conceptual reference without automatic loading; M1.4 finalizes profiles, loading and explicit CORS. Runtime upload storage must be configurable and isolated from source; `backend/uploads/` is an ignored future option. Backend `target/` and frontend `dist/` remain separate ignored build outputs. See workspace READMEs for locations; source packages are created incrementally.
+
 | Actor | Interaction and boundary |
 | --- | --- |
 | TECH candidate | Shared CANDIDATE account; professional profile/CV, assessments, released results, interviews and hiring |
