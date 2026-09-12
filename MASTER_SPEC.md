@@ -1,7 +1,7 @@
 # Verified Skill & Career Managed Marketplace with Voice-First Accessibility
 
 > Master project specification — permanent source of truth.
-> Version: 1.2 | Latest module: M0.3 | Date: 2026-09-12
+> Version: 1.3 | Latest module: M0.4 | Date: 2026-09-12
 > Repository: Nisa371/First-Project
 > Implementation status: specification only; no application features implemented.
 
@@ -434,6 +434,12 @@ Demonstrate authentication, role management, candidate/employer functionality, v
 
 For documentation-only M0.1, rule 20 means preserving any existing runnable application; it does not authorize creating an application scaffold. No application exists yet.
 
+### Development Standards
+
+All future implementation must follow [docs/DEVELOPMENT_STANDARDS.md](docs/DEVELOPMENT_STANDARDS.md): feature-oriented modularity, thin controllers, service-layer business logic, DTO-based APIs, consistent errors, backend-enforced authorization/ownership, environment-based secrets, incremental meaningful testing, minimal dependencies and synchronized documentation.
+
+Successful APIs return typed resource/collection bodies directly. The existing error contract retains the machine-readable field `error`, with optional `fieldErrors`; do not silently rename it to `code`. Runtime versions and the final database ID strategy remain deferred until setup/database design. M0.4 defines engineering standards only.
+
 ## 24. M0.1 definition of done
 
 - MASTER_SPEC.md exists at repository root as structured Markdown.
@@ -480,3 +486,4 @@ Future modules should resolve only the decisions they need, record approved chan
 | 1.0 | M0.1 | Initial master specification; documentation only. |
 | 1.1 | M0.2 | Added canonical authorization summary and link to detailed roles/permissions specification; documentation only. |
 | 1.2 | M0.3 | Defined core business workflows, MVP employer/queue/SLA decisions, additional conceptual states and detailed workflow reference; documentation only. |
+| 1.3 | M0.4 | Added development standards reference and engineering conventions; documentation only. |
