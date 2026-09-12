@@ -4,9 +4,9 @@ A planned two-tier managed employment marketplace for Bangladesh, with voice-fir
 
 ## Development status
 
-**Current phase:** M1 — Repository & Development Environment. M0 and M1.1 workspace preparation are complete. Spring Boot and React are not initialized; no business features exist.
+**Current phase:** M1 — Repository & Development Environment. **Completed through:** M1.2 — Spring Boot Backend Initialization. Tests, packaging and live health verification passed. React remains uninitialized; no business features exist.
 
-**Next:** M1.2 — Initialize Spring Boot Backend.
+**Next:** M1.3 — React Frontend Initialization.
 
 ## Core tracks and roles
 
@@ -33,13 +33,13 @@ For eligible managed Trade placements, employers may request replacement within 
 | Voice | Browser Web Speech API for Bangla input where supported; manual fallback |
 | Development | Git/GitHub, Postman, VS Code or IntelliJ IDEA |
 
-Compatible runtime/framework versions will be selected during setup.
+Backend: Java 21, Spring Boot 4.1.1, Maven 3.9.16 through the included wrapper. Frontend versions remain for M1.3.
 
 ## Repository structure
 
 | Path | Current purpose |
 | --- | --- |
-| backend/ | [Backend application boundary](backend/README.md); Spring Boot initialization in M1.2 |
+| backend/ | [Spring Boot backend](backend/README.md); bootstrap, public health check and infrastructure tests |
 | frontend/ | [Frontend application boundary](frontend/README.md); React initialization in M1.3 |
 | docs/ | Approved detailed specifications |
 | scripts/ | [Project helpers policy](scripts/README.md); utilities added only when needed |
@@ -58,17 +58,25 @@ This simple monorepo contains one backend application, one frontend application 
 | [ROADMAP.md](docs/ROADMAP.md) | Canonical module sequence, progress and dependency gates |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | System layers, module boundaries and integrations |
 | [DATABASE.md](docs/DATABASE.md) | Planned logical schema and relationships |
-| [API_SPEC.md](docs/API_SPEC.md) | Planned REST contracts, not implemented endpoints |
+| [API_SPEC.md](docs/API_SPEC.md) | Implemented health contract and planned business REST contracts |
 | [ROLES_AND_PERMISSIONS.md](docs/ROLES_AND_PERMISSIONS.md) | Roles, ownership and data-access boundaries |
 | [BUSINESS_WORKFLOWS.md](docs/BUSINESS_WORKFLOWS.md) | Workflows, states, failure paths and invariants |
 | [DEVELOPMENT_STANDARDS.md](docs/DEVELOPMENT_STANDARDS.md) | Engineering, configuration, testing and Git conventions |
 
 ## Local development and M0 → M1 handoff
 
-There are no runnable frontend/backend commands or demo accounts yet. Backend commands will run from `backend/` after M1.2; frontend commands from `frontend/` after M1.3. Planned local addresses are backend `http://localhost:8080` and frontend `http://localhost:5173`; actual environment/CORS configuration belongs to M1.4.
+With JDK 21 selected, run backend commands from `backend/`:
+
+```bash
+cd backend
+./mvnw test
+./mvnw spring-boot:run
+```
+
+Check `http://localhost:8080/api/health` for `{"status":"UP"}`. See [backend instructions](backend/README.md) for packaging, Windows commands, dependencies and the temporary security/database baseline. No frontend commands or demo accounts exist yet. Planned frontend origin is `http://localhost:5173`; actual environment/CORS configuration belongs to M1.4.
 
 1. M1.1 — Complete: development-ready monorepo boundaries, framework-owned files and tooling layout.
-2. M1.2 — Initialize Java/Spring Boot/Maven.
+2. M1.2 — Complete: Java/Spring Boot/Maven infrastructure, tests, build and health verification.
 3. M1.3 — Initialize React/TypeScript/Vite and Tailwind.
 4. M1.4 — Establish actual environment variables, loading, profiles and CORS.
 5. M1.5 — Verify builds and frontend/backend/database connectivity.

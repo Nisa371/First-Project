@@ -60,7 +60,7 @@ Existing source and configuration conventions take precedence over illustrative 
 
 ## 5. Java and backend coding style
 
-Use a stable Java version supported by the selected Spring Boot release. Neither is initialized; **do not guess or pin exact versions in M0.4**. At backend setup, record the actual Java, Spring Boot and Maven/wrapper requirements in the master/setup documentation.
+M1.2 confirms Java 21, Spring Boot 4.1.1 and Maven 3.9.16 via Maven Wrapper 3.3.4. Use UTF-8, LF and four-space Java indentation. Run commands from `backend/`; see [backend setup](../backend/README.md). Other runtime/version choices remain owned by their setup modules.
 
 | Element | Naming |
 | --- | --- |

@@ -1,12 +1,12 @@
 # System Architecture
 
-> M0.5 | Version 1.0 | Planning only; no deployed or implemented system is claimed.
+> M1.2 | Version 1.2 | Backend infrastructure added; domain architecture remains planned.
 
 ## 1. Authority and scope
 
 [MASTER_SPEC.md](../MASTER_SPEC.md) governs product/architecture. Apply [development standards](DEVELOPMENT_STANDARDS.md), [roles](ROLES_AND_PERMISSIONS.md) and [workflows](BUSINESS_WORKFLOWS.md). [DATABASE.md](DATABASE.md) plans persistence, [API_SPEC.md](API_SPEC.md) plans contracts and [ROADMAP.md](ROADMAP.md) fixes implementation IDs/dependencies.
 
-Use a modular monolith: React/TypeScript frontend, REST interface, Java/Spring Boot business application, Spring Data JPA, MySQL. H2 may support development/testing; MySQL is the main target. Versions, ID strategy and concrete infrastructure configuration remain deferred.
+Use a modular monolith: React/TypeScript frontend, REST interface, Java/Spring Boot business application, Spring Data JPA, MySQL. H2 supports the current development/test bootstrap; MySQL is the main target. Backend versions are confirmed below; frontend versions, ID strategy and production configuration remain deferred.
 
 ## 2. System context
 
@@ -142,6 +142,12 @@ Deployment model: browser loads React static assets, calls Spring Boot over HTTP
 
 ## 10. Compatibility and open choices
 
+### Confirmed backend foundation (M1.2)
+
+Java 21, Spring Boot 4.1.1, Maven 3.9.16 via Wrapper 3.3.4. Application root `backend/`; coordinates `com.marketplace:verified-career-marketplace-backend:0.0.1-SNAPSHOT`, JAR packaging, base package `com.marketplace`, entry point `VerifiedCareerMarketplaceApplication`. Application name is `verified-career-marketplace-backend`. The unchanged default backend port is 8080.
+
+Only `common.health` and `config` are currently needed beneath the application root. Public GET `/api/health` returns the typed `HealthResponse` with `status=UP`. The temporary filter chain requires authentication everywhere else; generated-user auto-configuration is excluded, CSRF remains enabled and CORS/JWT/RBAC are deferred. No business routes or entities exist. In-memory H2 is a development/test bootstrap with DDL and SQL initialization disabled; the console is disabled. See [backend instructions](../backend/README.md) for dependencies, commands and validation.
+
 Preserve FIFO among eligible workers, dual-party confirmation, 24-hour SLA from accepted request to new ACTIVE start, and separate configured coverage. No new state/role/product workflow introduced.
 
-Open: actual versions, ID/SQL types, migration and lock/claim implementation, exact pagination DTO, JWT/session controls, upload storage, commercial coverage and offer-expiry values. See roadmap dependency gates for M12/M15 and incremental security/testing. Architecture planning is not application initialization.
+Open: frontend versions, ID/SQL types, migration and lock/claim implementation, exact pagination DTO, JWT/session controls, upload storage, commercial coverage and offer-expiry values. See roadmap dependency gates for M12/M15 and incremental security/testing. Backend infrastructure does not implement the planned business architecture.

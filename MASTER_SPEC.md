@@ -1,9 +1,9 @@
 # Verified Skill & Career Managed Marketplace with Voice-First Accessibility
 
 > Master project specification — permanent source of truth.
-> Version: 1.6 | Latest module: M1.1 | Date: 2026-09-12
+> Version: 1.7 | Latest module: M1.2 | Date: 2026-09-12
 > Repository: Nisa371/First-Project
-> Implementation status: specification only; no application features implemented.
+> Implementation status: backend infrastructure added; no business features implemented.
 
 This document defines the approved initial direction for future modules. Requirements describe the eventual system, not currently available functionality. Planning-level entities, statuses, and package names may be refined through explicitly documented decisions. Future prompts that conflict with this specification must be identified before architectural changes are made.
 
@@ -135,7 +135,7 @@ M0.3 formalizes these workflows as documentation only; no application features a
 | Voice | Browser Web Speech API with Bangla recognition where supported; permanent manual text-entry fallback |
 | Expected development tools | Git, GitHub, VS Code, IntelliJ IDEA, Postman |
 
-Exact versions, supported browser matrix, JWT lifecycle, and deployment configuration are to be selected in their implementation modules. No dependencies or configuration files are created in M0.1.
+M1.2 configures Java 21, Spring Boot 4.1.1 and Maven 3.9.16 via Wrapper 3.3.4, with JJWT 0.13.0 dependencies reserved for M4. Frontend versions, supported browser matrix, JWT lifecycle and deployment configuration remain for their implementing modules. M0.1 itself created no dependencies or configuration files.
 
 ## 7. High-level architecture
 
@@ -451,13 +451,15 @@ Successful APIs return typed resource/collection bodies directly. The existing e
 
 Detailed implementation must follow these documents unless an approved future module updates the source of truth. They elaborate the existing roles, workflows and standards; no application code is implemented by M0.5.
 
-M0 and M1.1 workspace preparation are DONE; M1 is IN_PROGRESS. M1.2–M1.5 and M2–M23 remain NOT_STARTED. Roadmap IDs are preserved even where acceptance depends on later prerequisites, notably M12 replacement integration needing M15 placement/lifecycle/coverage; later partial work requires explicit task scope and honest progress tracking.
+M0, M1.1 and M1.2 are DONE; parent M1 remains IN_PROGRESS. M1.3–M1.5 and M2–M23 remain NOT_STARTED. Backend tests, executable packaging, dependency review and live health/start/stop checks passed with Java 21. Roadmap IDs are preserved even where acceptance depends on later prerequisites, notably M12 replacement integration needing M15 placement/lifecycle/coverage; later partial work requires explicit task scope and honest progress tracking.
 
 The database plan retains the 25 core tables and identifies four workflow-supporting relationships (job_skills, shortlist_entries, replacement_offers, booking_notes) for later schema design. Exact SQL/ID strategy, claim enforcement and storage normalization remain deferred. Planned APIs retain the `error` contract and role-specific projections; historical job archival uses explicit actions.
 
 ### Repository baseline
 
-M0.6 adds tracked backend/, frontend/ and scripts/ placeholders alongside docs/, plus a root README, .gitignore, .editorconfig and blank .env.example. Git history and the main branch are preserved. No Spring Boot, React, database, CI or Docker setup is present. Follow [README.md](README.md) for navigation and M0 → M1 handoff, and [development standards](docs/DEVELOPMENT_STANDARDS.md) for conventions. M1.1 refines the existing baseline instead of recreating it.
+M0.6 established backend/, frontend/ and scripts/ placeholders alongside docs/ and shared root configuration. M1.1 replaced redundant placeholders with workspace READMEs and confirmed boundaries. M1.2 adds the backend bootstrap, typed public GET `/api/health`, temporary security and H2 development/test configuration; no domain schema, frontend, CI or Docker setup exists. Follow [README.md](README.md), [backend instructions](backend/README.md) and [development standards](docs/DEVELOPMENT_STANDARDS.md).
+
+The health endpoint only reports backend availability. GET `/api/health` is anonymous; all other routes require authentication. Generated-user auto-configuration is excluded; no JWT/login/user logic exists, and CSRF remains enabled. M4 owns final JWT/RBAC security, M3.2 the complete error architecture. H2 is temporary, in-memory and nonpersistent, with DDL/SQL initialization disabled and no console; MySQL remains the main persistent target.
 
 ## 24. M0.1 definition of done
 
@@ -511,3 +513,4 @@ Future modules should resolve only the decisions they need, record approved chan
 | 1.4 | M0.5 | Added formal M0–M23 roadmap, architecture, logical database and API documentation references; planning only. |
 | 1.5 | M0.6 | Added repository baseline, README navigation and M0 completion status; no frameworks initialized. |
 | 1.6 | M1.1 | Finalized workspace boundaries, technical identifiers, ports, environment ownership and health plan; no frameworks initialized. |
+| 1.7 | M1.2 | Added Java 21/Spring Boot 4.1.1 backend foundation, wrapper, health endpoint, temporary security and H2 bootstrap; tests, packaging and live availability checks passed. |

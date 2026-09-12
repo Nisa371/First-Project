@@ -1,6 +1,6 @@
 # Development Roadmap
 
-> M1.1 | Version 1.2 | 2026-09-12 | Workspace readiness progress
+> M1.2 | Version 1.3 | 2026-09-12 | Backend initialization progress
 > Canonical IDs M0–M23 are fixed. No implementation is authorized by this roadmap alone.
 
 ## Authority and progress
@@ -9,7 +9,7 @@ Follow [MASTER_SPEC.md](../MASTER_SPEC.md), [roles](ROLES_AND_PERMISSIONS.md), [
 
 Progress states: NOT_STARTED (no implementation), IN_PROGRESS (active partial work), BLOCKED (named unmet dependency), DONE (deliverable and applicable verification evidenced). Maintain module rows and evidence/remaining work as each task completes. Parent milestone is DONE only when all children are DONE; a mix of completed/future children is IN_PROGRESS.
 
-M0 is DONE. M1.1 is DONE: workspace READMEs, metadata, file/environment ownership, local port and health plans are documented; redundant placeholders removed. Relative links, Git ignore boundaries and absence of framework/dependency files were checked. M1 is IN_PROGRESS; M1.2–M1.5 and M2–M23 remain NOT_STARTED. No business feature exists.
+M0 is DONE. M1.1 is DONE: workspace READMEs, metadata, file/environment ownership, local port and health plans are documented; redundant placeholders removed. Relative links, Git ignore boundaries and absence of framework/dependency files were checked before framework initialization. M1.2 is DONE with the verification below; parent M1 remains IN_PROGRESS. M1.3–M1.5 and M2–M23 remain NOT_STARTED. No business feature exists.
 
 ## Canonical milestone and submodule register
 
@@ -35,12 +35,16 @@ Milestone status: IN_PROGRESS.
 | ID | Deliverable | Status |
 | --- | --- | --- |
 | M1.1 | Finalize Development-Ready Monorepo Structure | DONE |
-| M1.2 | Initialize Spring Boot backend | NOT_STARTED |
+| M1.2 | Initialize Spring Boot backend | DONE |
 | M1.3 | Initialize React frontend | NOT_STARTED |
 | M1.4 | Environment configuration | NOT_STARTED |
 | M1.5 | Development environment verification | NOT_STARTED |
 
 Acceptance/dependency notes: M1.1 realizes/validates the baseline from M0.6; M1.2 chooses compatible stable Java/Spring Boot/Maven dependencies; M1.3 chooses compatible frontend versions. M1.4 configures examples, profiles, origins and secrets. M1.5 proves backend/frontend start, MySQL connection, safe health check, communication and builds.
+
+M1.2 evidence: Java 21/Spring Boot 4.1.1 application directly under `backend/`, Maven 3.9.16 wrapper, approved dependency set, typed health endpoint, temporary authentication requirement for other routes and safe in-memory H2 bootstrap. `./mvnw test` passed 3 tests; `./mvnw clean package` passed and produced an executable JAR; `./mvnw dependency:tree` passed and was reviewed. `./mvnw spring-boot:run` started on 8080 without MySQL; anonymous health returned 200 with exactly `{"status":"UP"}`, direct `/error` returned 401, and graceful shutdown completed. Source/text/link/ignore checks passed. No business schema/APIs, JWT implementation or frontend initialization occurred.
+
+Environment note: system Java was OpenJDK 17.0.20, with no global Maven. Verification used checksum-verified, workspace-local Temurin 21.0.12.1 and temporary Maven proxy/trust settings outside the repository; no system-wide software installation or baseline downgrade. Mockito's standard test listener emitted a non-failing self-attachment warning. See [backend instructions](../backend/README.md).
 
 ### M2 — Database Foundation
 
@@ -412,4 +416,4 @@ Arrows show acceptance dependencies, not renumbering. Notification intent and co
 
 Each future task reports module ID, created/modified files, relevant commit/verification, dependencies, assumptions and remaining work. Use the [standards checklist](DEVELOPMENT_STANDARDS.md) and W01–W21 acceptance rules. A schema, UI mock, fixture or TODO does not prove a business workflow complete.
 
-M0 evidence is the specifications and verified baseline. M1.1 adds reviewed workspace boundaries and documentation without initializing frameworks or installing dependencies. Next is M1.2 backend, then M1.3 frontend, M1.4 environment and M1.5 connectivity verification.
+M0 evidence is the specifications and verified baseline. M1.1 added reviewed workspace boundaries without frameworks or dependencies; M1.2 initialized and verified backend infrastructure. Next is M1.3 frontend, then M1.4 environment and M1.5 connectivity verification.

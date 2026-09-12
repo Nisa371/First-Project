@@ -1,6 +1,6 @@
 # Planned REST API Specification
 
-> M0.5 | Version 1.0 | Contract plan only; no endpoint is implemented.
+> M1.2 | Version 1.2 | Health infrastructure implemented; all business endpoints remain planned.
 > Follow [MASTER_SPEC.md](../MASTER_SPEC.md), [roles](ROLES_AND_PERMISSIONS.md), [workflows](BUSINESS_WORKFLOWS.md), [standards](DEVELOPMENT_STANDARDS.md), [architecture](ARCHITECTURE.md), [database plan](DATABASE.md) and [roadmap](ROADMAP.md).
 
 ## 1. Global contract rules
@@ -15,9 +15,9 @@ IDs in examples are symbolic/illustrative; final ID strategy is deferred. Payloa
 
 ## 2. Planned endpoint catalog
 
-### Infrastructure health (M1.1 plan; implementation in M1.2)
+### Infrastructure health (M1.2)
 
-`GET /api/health` is public and returns HTTP 200, `application/json`, with typed body `{"status":"UP"}`. It checks backend availability only; it is not a database readiness or production monitoring guarantee. No credentials, environment or internal configuration are exposed. M1.5 uses it for connectivity verification.
+`GET /api/health` is public and returns HTTP 200, `application/json`, with typed body `{"status":"UP"}`. It checks backend availability only; it is not a database readiness or production monitoring guarantee. No credentials, environment or internal configuration are exposed. M1.5 uses it for connectivity verification. Only this health endpoint is implemented. Temporary M1.2 security returns 401 for other anonymous GET requests, including direct `/error` access; CSRF remains enabled for unsafe methods. Final security/error JSON integration remains M4/M3.2 work.
 
 ### Authentication
 
