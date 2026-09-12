@@ -1,6 +1,6 @@
 # Development Roadmap
 
-> M0.5 | Version 1.0 | 2026-09-12 | Planning only
+> M0.6 | Version 1.1 | 2026-09-12 | Roadmap and baseline progress
 > Canonical IDs M0–M23 are fixed. No implementation is authorized by this roadmap alone.
 
 ## Authority and progress
@@ -9,13 +9,13 @@ Follow [MASTER_SPEC.md](../MASTER_SPEC.md), [roles](ROLES_AND_PERMISSIONS.md), [
 
 Progress states: NOT_STARTED (no implementation), IN_PROGRESS (active partial work), BLOCKED (named unmet dependency), DONE (deliverable and applicable verification evidenced). Maintain module rows and evidence/remaining work as each task completes. Parent milestone is DONE only when all children are DONE; a mix of completed/future children is IN_PROGRESS.
 
-At inspection, M0.1–M0.4 were complete documentation at commit 2d782bf. M0.5 was IN_PROGRESS during preparation; the final delivered set marks it DONE after consistency review. M0 remains IN_PROGRESS because M0.6 is NOT_STARTED. All M1–M23 are NOT_STARTED. No application exists.
+M0.1–M0.5 documentation was complete at commit 6e8066c. M0.6 adds the verified repository baseline: root README, .gitignore, .editorconfig, blank .env.example, and tracked backend/frontend/scripts placeholders. M0.1–M0.6 and parent M0 are DONE. All M1–M23 remain NOT_STARTED. No application framework or business feature exists.
 
 ## Canonical milestone and submodule register
 
 ### M0 — Project Definition & Codex Foundation
 
-Milestone status: IN_PROGRESS.
+Milestone status: DONE.
 
 | ID | Deliverable | Status |
 | --- | --- | --- |
@@ -24,9 +24,9 @@ Milestone status: IN_PROGRESS.
 | M0.3 | Business workflows | DONE |
 | M0.4 | Development standards | DONE |
 | M0.5 | Formal roadmap and technical documentation | DONE |
-| M0.6 | Repository initialization and baseline project structure | NOT_STARTED |
+| M0.6 | Repository initialization and baseline project structure | DONE |
 
-Acceptance/dependency notes: Evidence: MASTER_SPEC.md, ROLES_AND_PERMISSIONS.md, BUSINESS_WORKFLOWS.md, DEVELOPMENT_STANDARDS.md and the four M0.5 documents. M0.6 remains outside this task.
+Acceptance/dependency notes: Evidence: MASTER_SPEC.md, ROLES_AND_PERMISSIONS.md, BUSINESS_WORKFLOWS.md, DEVELOPMENT_STANDARDS.md and the four M0.5 documents. M0.6 evidence: root baseline files and backend/frontend/scripts placeholders, with Git ignore, link and text checks.
 
 ### M1 — Repository & Development Environment
 
@@ -34,7 +34,7 @@ Milestone status: NOT_STARTED.
 
 | ID | Deliverable | Status |
 | --- | --- | --- |
-| M1.1 | Create monorepo structure | NOT_STARTED |
+| M1.1 | Finalize Development-Ready Monorepo Structure | NOT_STARTED |
 | M1.2 | Initialize Spring Boot backend | NOT_STARTED |
 | M1.3 | Initialize React frontend | NOT_STARTED |
 | M1.4 | Environment configuration | NOT_STARTED |
@@ -361,7 +361,7 @@ Acceptance/dependency notes: Final responsive/accessibility/Bangla/error/documen
 
 ## Setup boundaries and expected structure
 
-M0.6 establishes only the requested repository baseline: preserve docs, clarify layout, baseline README/repository hygiene as its later prompt specifies. M1.1 fills in the working monorepo/development layout and reuses that baseline; it does not initialize a second nested repository or duplicate frontend/backend folders.
+M0.6 established the repository baseline. M1.1 will verify backend/frontend workspace boundaries, define framework-owned files, add local setup notes where needed and prepare cross-project tooling structure. It reuses these folders; it does not initialize a second nested repository or duplicate the skeleton.
 
 The eventual root (called marketplace/ illustratively; existing repository name stays First-Project) contains frontend/, backend/, docs/, scripts/, docker-compose.yml, README.md and MASTER_SPEC.md. Docker Compose is a planned local-development aid under M1, not a service created in M0.5 or an architectural requirement for every deployment.
 
@@ -412,4 +412,4 @@ Arrows show acceptance dependencies, not renumbering. Notification intent and co
 
 Each future task reports module ID, created/modified files, relevant commit/verification, dependencies, assumptions and remaining work. Use the [standards checklist](DEVELOPMENT_STANDARDS.md) and W01–W21 acceptance rules. A schema, UI mock, fixture or TODO does not prove a business workflow complete.
 
-M0.5 evidence is the four cross-referenced documents plus master references. Do not mark M0.6 DONE because these documentation files now exist. Stop after M0.5; no setup, code, tests or Docker services are created.
+M0.5 evidence is the four cross-referenced documents plus master references. M0.6 is complete with the baseline files and validation described above, not merely because documentation exists. Next is M1.1 refinement, then M1.2 backend, M1.3 frontend, M1.4 environment and M1.5 connectivity verification. M0.6 creates no framework, business code, tests, database infrastructure, CI or Docker services. Stop after M0.6.

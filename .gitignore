@@ -1,0 +1,37 @@
+# Operating system and local editor state
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local environments and secrets; examples remain versioned
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.pem
+*.key
+
+# Java/Maven generated output (do not ignore Maven wrapper files)
+/backend/target/
+*.class
+*.log
+
+# Node/Vite generated dependencies, builds and caches
+node_modules/
+/frontend/dist/
+/frontend/.vite/
+.npm/
+*.tsbuildinfo
+
+# Generated test/coverage output
+coverage/
+.nyc_output/
+/frontend/playwright-report/
+/frontend/test-results/
+
+# Reserved local development upload locations, not source/assets
+/uploads/
+/backend/uploads/
