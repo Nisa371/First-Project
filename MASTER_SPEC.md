@@ -1,7 +1,7 @@
 # Verified Skill & Career Managed Marketplace with Voice-First Accessibility
 
 > Master project specification — permanent source of truth.
-> Version: 1.3 | Latest module: M0.4 | Date: 2026-09-12
+> Version: 1.4 | Latest module: M0.5 | Date: 2026-09-12
 > Repository: Nisa371/First-Project
 > Implementation status: specification only; no application features implemented.
 
@@ -440,6 +440,21 @@ All future implementation must follow [docs/DEVELOPMENT_STANDARDS.md](docs/DEVEL
 
 Successful APIs return typed resource/collection bodies directly. The existing error contract retains the machine-readable field `error`, with optional `fieldErrors`; do not silently rename it to `code`. Runtime versions and the final database ID strategy remain deferred until setup/database design. M0.4 defines engineering standards only.
 
+### Technical Documentation
+
+| Document | Authority |
+| --- | --- |
+| [docs/ROADMAP.md](docs/ROADMAP.md) | Canonical M0–M23 implementation sequence, 130 fixed submodule IDs, progress and explicit dependency gates |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | System context, module boundaries, request/security flow, patterns, storage and deployment model |
+| [docs/DATABASE.md](docs/DATABASE.md) | Planning-level relational schema, relationships, constraints/history and restricted data |
+| [docs/API_SPEC.md](docs/API_SPEC.md) | Planned REST contracts, DTO examples, ownership/access, errors and duplicate-action rules |
+
+Detailed implementation must follow these documents unless an approved future module updates the source of truth. They elaborate the existing roles, workflows and standards; no application code is implemented by M0.5.
+
+M0.1–M0.5 are complete documentation modules; M0.6 and M1–M23 remain NOT_STARTED. M0 as a whole remains IN_PROGRESS. Roadmap IDs are preserved even where acceptance depends on later prerequisites, notably M12 replacement integration needing M15 placement/lifecycle/coverage; later partial work requires explicit task scope and honest progress tracking.
+
+The database plan retains the 25 core tables and identifies four workflow-supporting relationships (job_skills, shortlist_entries, replacement_offers, booking_notes) for later schema design. Exact SQL/ID strategy, claim enforcement and storage normalization remain deferred. Planned APIs retain the `error` contract and role-specific projections; historical job archival uses explicit actions.
+
 ## 24. M0.1 definition of done
 
 - MASTER_SPEC.md exists at repository root as structured Markdown.
@@ -487,3 +502,4 @@ Future modules should resolve only the decisions they need, record approved chan
 | 1.1 | M0.2 | Added canonical authorization summary and link to detailed roles/permissions specification; documentation only. |
 | 1.2 | M0.3 | Defined core business workflows, MVP employer/queue/SLA decisions, additional conceptual states and detailed workflow reference; documentation only. |
 | 1.3 | M0.4 | Added development standards reference and engineering conventions; documentation only. |
+| 1.4 | M0.5 | Added formal M0–M23 roadmap, architecture, logical database and API documentation references; planning only. |
