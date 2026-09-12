@@ -1,7 +1,7 @@
 # Verified Skill & Career Managed Marketplace with Voice-First Accessibility
 
 > Master project specification — permanent source of truth.
-> Version: 1.1 | Latest module: M0.2 | Date: 2026-09-12
+> Version: 1.2 | Latest module: M0.3 | Date: 2026-09-12
 > Repository: Nisa371/First-Project
 > Implementation status: specification only; no application features implemented.
 
@@ -41,7 +41,7 @@ Fees, commission rates, and commercial terms remain to be defined. Training reco
 
 Eligible trade-worker placements support a replacement request if the worker leaves or becomes unavailable during the defined guarantee period. Skill-specific waiting lists provide verified replacement candidates.
 
-The **24-hour replacement response/fulfillment target** and the **duration of placement guarantee coverage** are separate concepts. Coverage duration, the precise clock start, what counts as fulfillment, exclusions, and escalation policy are open business decisions; this specification does not invent contractual terms or claim the MVP can guarantee real-world fulfillment.
+The **24-hour replacement fulfillment target** and the **duration of placement guarantee coverage** are separate concepts. M0.3 defines the MVP target as accepted request time plus 24 elapsed hours, with fulfillment when a confirmed linked replacement placement becomes ACTIVE. Track request, target and actual completion timestamps with PENDING/ON_TIME/BREACHED SLA outcomes; retries never reset the clock. Coverage duration, commercial exclusions and renewal terms remain explicit policy inputs, not invented contractual promises. Detailed rules are in [Business Workflows](docs/BUSINESS_WORKFLOWS.md).
 
 Example: an AC Technician Queue contains Candidate A, Candidate B, then Candidate C. Selection considers the next *eligible* worker, not blindly the first record.
 
@@ -60,14 +60,14 @@ Example: an AC Technician Queue contains Candidate A, Candidate B, then Candidat
 
 ### Queue and failure rules
 
-- Proposed MVP ordering is FIFO by queue-entry time, with a stable identifier as a tie-breaker, among eligible candidates. This is an initial assumption subject to approval before implementation.
+- M0.3 defines MVP ordering as FIFO by queue-entry time, with a stable entry identifier as tie-breaker, among eligible skill-matched candidates. Relevant released HIRE_READY is a readiness gate; scores do not reorder eligible workers.
 - Recheck verification, account status, availability, and reservation status at selection time.
 - A candidate may have multiple skills, but must not be reserved or actively placed incompatibly across queues.
 - Reservation/placement changes must be transactional; concurrent requests must not assign the same worker twice. A singleton service alone does not provide this guarantee.
 - Repeated requests must not create duplicate active replacements for one incident/placement.
 - Record skipped/ineligible candidates, reservation release, and failed selection with appropriate operational context, without logging sensitive evidence.
 - If no candidate is available, retain an explicit failure/unfulfilled result and notify administrators; do not fabricate a successful replacement.
-- Decline, timeout, cancellation, retry, and escalation policies must be finalized in the replacement module. Keep attempts/history rather than silently erasing failure.
+- M0.3 defines decline/rejection/expiry recovery, reservation release, exhaustion as FAILED, and audited retry of the same unresolved request without an SLA reset. Offer-expiry duration and production escalation details remain policy inputs. Keep attempts/history rather than silently erasing failure.
 - Store relevant request, selection, notification, and completion timestamps so the eventual 24-hour policy can be measured. A missed target must be visible, not treated as success.
 - Replacement records link the original placement, request, selected candidate, and eventual replacement placement.
 
@@ -84,7 +84,7 @@ Real SMS and automated calling are not required to model this workflow correctly
 
 Candidate type is TECH or TRADE on a shared account foundation. Do not create separate authentication systems for the tracks. Account status, candidate type, verification status, and assessment recommendation are separate concepts.
 
-Training institutes are partner entities managed through administration in the initial scope; a separate institute login role is not required unless later approved. Privileged roles must not be self-assigned through public registration. Employer approval criteria and role-assignment procedures are decisions for the relevant modules.
+Training institutes are partner entities managed through administration in the initial scope; a separate institute login role is not required unless later approved. Privileged roles must not be self-assigned through public registration. M0.3 resolves formal employer approval/verification as optional/future: an ACTIVE employer with complete company details may use basic MVP workflows. Privileged role-assignment procedures and organization membership remain decisions for the relevant modules.
 
 ### Canonical roles and candidate types
 
@@ -101,39 +101,27 @@ Apply least privilege, backend enforcement, resource ownership/assignment, sensi
 
 The detailed authorization specification, including the permission matrix, conditional rules, role/type changes, and security invariants, is [docs/ROLES_AND_PERMISSIONS.md](docs/ROLES_AND_PERMISSIONS.md). M0.2 defines behavior only; no security implementation is present.
 
-## 5. Primary user workflows
+## 5. Core Business Workflows
 
-### 5.1 Tech candidate
+Detailed behavior, actors, permissions, preconditions, alternate/failure flows, state transitions, events, consistency rules and demos are specified in [docs/BUSINESS_WORKFLOWS.md](docs/BUSINESS_WORKFLOWS.md). It defines W01–W21; M0.2's [authorization specification](docs/ROLES_AND_PERMISSIONS.md) remains binding.
 
-Register → login → complete profile → add skills → upload CV/portfolio → take assessment → evaluator reviews → receive evaluation → employer discovers qualified candidate → shortlist → interview/consultation → hire → placement record.
+| Workflow | MVP summary |
+| --- | --- |
+| Tech candidate | Register/login → complete professional profile, skill and CV requirements → applicable assessment → released evaluation → eligible discovery/shortlist → interview → confirmed placement |
+| Trade candidate | Shared CANDIDATE/TRADE account → Bangla voice-assisted or manual confirmed profile → consultation, verification and skill evaluation → eligibility review → queue → managed placement |
+| Employer | Register ACTIVE → complete company details → use basic hiring workflows; formal employer verification optional/future |
+| Assessment/evaluation | Eligible attempt → immutable submission → objective scoring or assigned human review → finalized result → explicit safe release → HIRE_READY, NEEDS_TRAINING or REJECTED routing |
+| Verification | Own submission → PENDING → authorized IN_REVIEW → VERIFIED, FAILED or FLAGGED; no self-approval or government-validation claim |
+| Waiting list | ACTIVE, COMPLETE, VERIFIED, relevant released HIRE_READY, AVAILABLE TRADE candidate → system-controlled FIFO queue; retain exit/reservation history and recheck at selection |
+| Placement | Confirmed actual parties → PENDING → confirmed start ACTIVE → authorized lifecycle; applicable managed TRADE guarantee recorded explicitly, not automatically applied to TECH |
+| Replacement | Owned covered placement → one REQUESTED → MATCHING → exclusive CANDIDATE_SELECTED → employer in-app offer → both confirmations ACCEPTED → new placement ACTIVE → request COMPLETED and original REPLACED |
+| Referral | Released NEEDS_TRAINING → suitable partner program → REFERRED → CONTACTED → ENROLLED → COMPLETED or CANCELLED through authorized operational updates |
 
-### 5.2 Trade candidate
+Supporting workflows cover profile completeness, job lifecycle, shortlisting, basic booking, notification generation, account restriction, privileged role assignment, and audit generation. Failures never imply fulfillment: exhausted replacement requests retain FAILED, notify employer/admin, and continue SLA tracking. Original placements remain REPLACEMENT_REQUESTED until fulfillment or explicit authorized closure.
 
-Register → select TRADE → choose service/skill category → enter information manually or through Bangla speech → book appointment when necessary → submit verification information → evaluator/admin reviews identity/background/ethics information and skill evaluation → become VERIFIED → enter appropriate waiting list → employer hires → placement record.
+Profile completion does not imply verification; verification does not imply HIRE_READY; a released recommendation does not bypass current availability/ownership/status checks. Assessment REJECTED does not block the account. Speech is accessibility input with manual fallback, never a biometric or competency verdict.
 
-Unverified, failed, flagged, suspended, blocked, or unavailable candidates must not be presented as currently eligible verified replacement workers. Verification is an explicit review outcome, not the mere presence of a submitted document.
-
-### 5.3 Employer
-
-Register → employer profile setup → approval/verification if required → create job/workforce requirement → search qualified candidates → view permitted profiles → shortlist → request interview/consultation → hire → manage placement → request replacement if eligible.
-
-### 5.4 Assessment
-
-Assessment created → candidate starts → answers questions or supplies a submission → attempt/answers stored → automatic scoring where appropriate → evaluator review where necessary → final evaluation → candidate result → hiring or training recommendation.
-
-A voice-assisted submission is not automatically proof of competence. Preserve the distinction between automated score and evaluator-approved result.
-
-### 5.5 Replacement
-
-Worker placed → worker becomes unavailable within coverage → employer submits request → eligibility validated → required skill resolved → waiting list queried → next eligible worker reserved → replacement record/selection recorded → notifications and audit events → acceptance → linked replacement placement → completion.
-
-Invalid requests must be rejected with a clear business-rule explanation. Queue exhaustion must remain an explicit unsuccessful outcome.
-
-### 5.6 Training referral
-
-Assessment/evaluation → skill gap identified → NEEDS_TRAINING recommendation → suitable programs shown → referral to partner institute → referral tracked.
-
-Referral states: REFERRED, CONTACTED, ENROLLED, COMPLETED, CANCELLED. Referral completion does not automatically verify a worker or guarantee hiring.
+M0.3 formalizes these workflows as documentation only; no application features are implemented.
 
 ## 6. Initial technology stack
 
@@ -233,7 +221,7 @@ Shortlist persistence, employer organization membership, reservation history, fi
 
 ## 11. Initial conceptual statuses
 
-These are planning vocabulary, not final Java enums.
+These are planning vocabulary, not final Java enums. M0.3's [workflow specification](docs/BUSINESS_WORKFLOWS.md) defines allowed transitions and adds the following separate conceptual models: profile INCOMPLETE/COMPLETE; job DRAFT/ACTIVE/CLOSED/ARCHIVED; attempt NOT_STARTED/IN_PROGRESS/SUBMITTED/UNDER_REVIEW/EVALUATED/CANCELLED/EXPIRED; result UNRELEASED/RELEASED; booking BOOKED/COMPLETED/CANCELLED/NO_SHOW; queue QUEUED/RESERVED/EXITED; availability AVAILABLE/UNAVAILABLE; SLA PENDING/ON_TIME/BREACHED; notification UNREAD/READ. Shortlists use membership/history rather than a new state machine.
 
 | Concept | Statuses |
 | --- | --- |
@@ -246,7 +234,7 @@ These are planning vocabulary, not final Java enums.
 
 Typical verification progression is PENDING → IN_REVIEW → VERIFIED or FAILED; FLAGGED requires authorized review. Typical replacement success progresses REQUESTED → MATCHING → CANDIDATE_SELECTED → EMPLOYER_NOTIFIED → ACCEPTED → COMPLETED; unsuccessful processing must record FAILED and its reason where appropriate.
 
-The placement being replaced must retain its history; the new placement is separately linked. Notification does not imply acceptance, and selection does not imply completion. Final transition matrices, retry/review paths, waiting-list states, cancellation, and reservation-expiry behavior belong to the relevant modules. Status transitions require authorization and business-rule validation.
+The placement being replaced must retain its history; the new placement is separately linked. Notification does not imply acceptance, and selection does not imply completion. M0.3 defines transition matrices, retry/review paths, waiting-list states and cancellation/release behavior. Numeric reservation expiry and remaining production policy inputs must be selected before affected implementation. Status transitions require authorization and business-rule validation.
 
 ## 12. Required object-oriented design patterns
 
@@ -469,15 +457,15 @@ GitHub's repository contents endpoint reported that Nisa371/First-Project was em
 - Use the stated Java/Spring Boot and React/TypeScript stack, not a stack inferred from unrelated projects.
 - Use a modular monolith with shared candidate authentication.
 - Institutes begin as admin-managed partners rather than a fifth authentication role.
-- FIFO among eligible candidates is the proposed queue ordering.
+- M0.3 formalizes FIFO among eligible skill-matched candidates with a stable entry-ID tie-breaker.
 - Model the 24-hour target separately from coverage duration; no production contractual policy is invented.
-- The initial notification workflow may be in-app/manual, with external services explicitly deferred.
+- M0.3 requires IN_APP notification records; authorized operational contact may record attributed confirmations. External channels remain deferred.
 
 ### Decisions required before affected implementation
 
-- Guarantee duration, clock start, fulfillment definition, eligibility/exclusions, acceptance, timeouts, escalation, and treatment of replacement coverage.
-- Queue ordering approval, availability matching, reservation expiry, decline/retry behavior, and final state transitions.
-- Employer approval and organization membership; privileged role assignment.
+- Production guarantee duration/exclusions and renewal, numeric offer expiry and escalation details remain open. M0.3 defines accepted-request SLA clock, active replacement-start fulfillment, dual-party confirmation and retry behavior.
+- Detailed implementation of M0.3's eligibility/FIFO/transition/decline-retry rules; numeric reservation-expiry policy remains to be supplied.
+- Employer organization membership and privileged role-assignment safeguards; formal employer approval is optional/future under M0.3.
 - Assessment rubrics, thresholds, evaluator assignment, verification criteria, and review/appeal procedures.
 - Supported runtime/library versions, JWT lifecycle, upload limits/storage, and deployment configuration.
 - Privacy consent, data minimization, retention/deletion, and browser speech-processing disclosure.
@@ -491,3 +479,4 @@ Future modules should resolve only the decisions they need, record approved chan
 | --- | --- | --- |
 | 1.0 | M0.1 | Initial master specification; documentation only. |
 | 1.1 | M0.2 | Added canonical authorization summary and link to detailed roles/permissions specification; documentation only. |
+| 1.2 | M0.3 | Defined core business workflows, MVP employer/queue/SLA decisions, additional conceptual states and detailed workflow reference; documentation only. |
