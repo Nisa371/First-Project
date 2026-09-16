@@ -1,153 +1,260 @@
-# System Architecture
+# Architecture
 
-> M1.2 | Version 1.2 | Backend infrastructure added; domain architecture remains planned.
+## 1. Style
 
-## 1. Authority and scope
+Use a **modular monolith**:
 
-[MASTER_SPEC.md](../MASTER_SPEC.md) governs product/architecture. Apply [development standards](DEVELOPMENT_STANDARDS.md), [roles](ROLES_AND_PERMISSIONS.md) and [workflows](BUSINESS_WORKFLOWS.md). [DATABASE.md](DATABASE.md) plans persistence, [API_SPEC.md](API_SPEC.md) plans contracts and [ROADMAP.md](ROADMAP.md) fixes implementation IDs/dependencies.
+```text
+React SPA
+   ↓ REST/JSON
+Spring Boot
+   ↓ JPA
+H2 / MySQL
+```
 
-Use a modular monolith: React/TypeScript frontend, REST interface, Java/Spring Boot business application, Spring Data JPA, MySQL. H2 supports the current development/test bootstrap; MySQL is the main target. Backend versions are confirmed below; frontend versions, ID strategy and production configuration remain deferred.
+No microservices are needed.
 
-## 2. System context
+## 2. Repository
 
-### Workspace decisions (M1.1)
+```text
+/
+├── AGENTS.md
+├── MASTER_SPEC.md
+├── README.md
+├── backend/
+├── frontend/
+├── docs/
+└── scripts/
+```
 
-One Git repository contains independent `backend/` and `frontend/` applications with shared root documentation and `scripts/` helpers. No root Maven aggregator, npm workspace, Nx, Turborepo or microservice tooling is needed. Framework commands run from their application roots.
+One backend app and one frontend app.
 
-| Decision | Value / owner |
-| --- | --- |
-| Internal project identifier | `verified-career-marketplace` |
-| Backend Maven group / Java package root | `com.marketplace` |
-| Backend artifact / application name | `verified-career-marketplace-backend` |
-| Frontend package name | `verified-career-marketplace-frontend` |
-| Local backend / API base | `http://localhost:8080` / `/api` |
-| Local frontend origin | `http://localhost:5173` |
-| Framework setup | M1.2 owns backend Maven/source/dependencies/health/build; M1.3 owns frontend package/config/source/build |
-| Configuration ownership | Backend owns DB/JWT/CORS and FRONTEND_URL; frontend owns public VITE_API_BASE_URL |
+## 3. Backend
 
-Root `.env.example` remains a conceptual reference without automatic loading; M1.4 finalizes profiles, loading and explicit CORS. Runtime upload storage must be configurable and isolated from source; `backend/uploads/` is an ignored future option. Backend `target/` and frontend `dist/` remain separate ignored build outputs. See workspace READMEs for locations; source packages are created incrementally.
+Base package:
 
-| Actor | Interaction and boundary |
-| --- | --- |
-| TECH candidate | Shared CANDIDATE account; professional profile/CV, assessments, released results, interviews and hiring |
-| TRADE candidate | Same CANDIDATE role; Bangla-assisted/manual input, verification, skill evaluation, queue eligibility, offers and placement |
-| Employer | Own company/jobs/shortlists/placements; safe candidate discovery; eligible replacement requests |
-| Evaluator | Assigned submissions/verification duties, scores, feedback and consultations; no self-review or unrelated evidence |
-| Admin | Operational oversight, reference data, privileged role/status actions, safe analytics and audit inspection |
-| Training institute | External business partner/program provider; admin-managed records and operational referrals; no MVP institute login |
+```text
+com.marketplace
+```
 
-The frontend is untrusted input. TECH/TRADE are profile types, not authentication roles. Normal protected operations require ACTIVE. Formal employer verification is optional/future; completed employer profile remains a workflow gate.
+Prefer feature-oriented packages:
 
-## 3. Layers and request flow
+```text
+auth
+user
+candidate
+employer
+job
+assessment
+booking
+verification
+training
+placement
+replacement
+notification
+audit
+admin
+common
+config
+```
 
-Browser UI → feature API module → shared Axios client → security filter/authentication → Spring controller/DTO validation → service ownership/assignment and business checks → repository → MySQL.
+A feature may contain its controller/service/repository/entity/dto classes without excessive nesting.
 
-Responses return through authorized mapping to consumer-specific DTOs, then feature API/UI. Controllers remain thin; services orchestrate business operations and transactions; repositories perform persistence rather than workflows. Security error paths use the same approved error contract where applicable.
+### Layer Rules
 
-| Layer | Responsibilities |
-| --- | --- |
-| React UI/pages | Interaction, accessibility, presentation and safe client validation |
-| API services | Central configuration, typed transport and consistent error handling |
-| Security boundary | Authentication, current account status, coarse role gate |
-| Controller | Request/response DTO and transport status |
-| Application/domain services | Ownership/assignment, allowed transitions, eligibility, transactions and domain events |
-| Repository/JPA | Scoped queries, storage and persistence constraints |
-| MySQL | Relational integrity and concurrency-supported durable state |
+Controller:
+- transport;
+- request validation;
+- response/status.
 
-No controller directly returns JPA entities. Frontend role routing is UX only. IDs, hidden controls, claimed roles and client-supplied statuses do not establish authority.
+Service:
+- business logic;
+- ownership;
+- state transitions;
+- transactions;
+- event publication.
 
-## 4. Frontend modules
+Repository:
+- persistence/query logic.
 
-Planned frontend/src/ shared areas: app/, pages/, components/, layouts/, hooks/, router/, services/, types/. Features live under features/ with auth, candidates, employers, jobs, assessments, appointments, voice, verification, placements, replacements, referrals, notifications, admin and dashboard. Preserve plural candidates/employers from the master/standards; illustrative singular paths are not new names.
+DTO:
+- API contract.
 
-Pages compose focused feature components. Feature hooks/API modules use the shared Axios client. Limited shared auth state may use Context; optional server-state/form libraries require justification. Typed requests/results match API DTOs and error/fieldErrors contract.
+Do not expose entities directly.
 
-Every data-driven view handles loading, empty, success, validation and failure states. Trade workflows use mobile-first large controls, Bangla labels, transcript review and permanent manual input. Browser recognition can fail or be unavailable without blocking onboarding. No mandatory raw audio upload subsystem.
+## 4. Frontend
 
-## 5. Backend modules
+Expected organization:
 
-Root: backend/src/main/java/com/marketplace/ unless an explicitly approved implementation establishes another root.
+```text
+frontend/src/
+├── app/
+├── components/
+├── layouts/
+├── pages/
+├── router/
+├── services/
+├── types/
+└── features/
+```
 
-| Feature | Boundary |
-| --- | --- |
-| config/common | Configuration, validation/error conventions and narrow shared utilities |
-| auth/user | Registration/login, memberships, current status and trusted account operations |
-| candidate | Shared candidate profile, type, skills, CV and completeness |
-| employer/job | Company data, owned requirements, safe discovery and shortlist membership |
-| assessment | Definitions/questions, immutable attempts, scoring strategies, assigned evaluation and release |
-| appointment | Slots, booking participants/capacity, consultation/interview outcomes and notes |
-| voice | Confirmed transcript/metadata support only where needed |
-| verification | Restricted case evidence/review and authoritative current outcome |
-| placement | Hiring agreements, placements, guarantee coverage and replacement-request lifecycle |
-| queue | Eligibility/FIFO, candidate-wide claim, release and replacement selection |
-| referral | Partner institutes/programs and referral states |
-| notification | IN_APP records and intended delivery/read state |
-| audit | Immutable attributable business/security evidence |
-| dashboard | Scoped aggregates and operational presentation queries |
+Feature folders are created only when used.
 
-Each feature may contain controller, service, repository, dto, mapper, entity and event/exception areas when useful; do not force every subfolder into small features. Replacement orchestration spans placement and queue through explicit service contracts, not circular controllers or duplicated managers.
+Suggested features:
 
-Readiness, verification, completeness and availability are separate sources. A query may combine their facts but cannot create a competing authoritative status field. Snapshot/cache projections require explicit invalidation if later introduced.
+```text
+auth
+candidate
+employer
+jobs
+assessments
+bookings
+trade
+verification
+placements
+replacements
+training
+notifications
+admin
+```
 
-## 6. Required academic patterns
+## 5. Request Flow
 
-| Pattern | Conceptual implementation | Purpose/constraint |
-| --- | --- | --- |
-| Strategy | AssessmentStrategy; TechAssessmentStrategy and VoiceAssessmentStrategy where behavior differs | Avoid giant branching; human trade review is not AI scoring or voice identity proof |
-| Factory | AssessmentStrategyFactory, or a justified candidate factory | Select genuine variable construction/strategy; no redundant factory for claims alone |
-| Singleton | Spring-managed ReplacementQueueManager | One managed service per context; persisted queues and transactions, no static global mutable list |
-| Observer | PlacementCreatedEvent, CandidateVerifiedEvent, ReplacementRequestedEvent, ReferralCreatedEvent | NotificationListener, AuditLogListener, QueueListener handle scoped reactions |
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant F as React
+    participant S as Spring Security
+    participant C as Controller
+    participant SV as Service
+    participant R as Repository
+    participant DB as Database
 
-Conceptual class/event names are not implemented code or replacements for M0.3 audit identifiers. Map domain events to existing audit actions with correlation. No success notification on rollback, duplicate effects on replay, or recursive notification/audit loops.
+    U->>F: interaction
+    F->>S: REST request
+    S->>C: authenticated request
+    C->>SV: validated DTO
+    SV->>SV: role/ownership/state checks
+    SV->>R: query/update
+    R->>DB: persistence
+    DB-->>R: result
+    R-->>SV: entity/data
+    SV-->>C: response DTO
+    C-->>F: JSON
+    F-->>U: polished UI state
+```
 
-## 7. Transaction and concurrency boundaries
+## 6. Authentication
 
-| Operation | Consistent outcome |
-| --- | --- |
-| Booking | Capacity + participants + reservation committed once; no overbooking |
-| Verification change | Authoritative outcome/history + eligibility effects + audit intent; no revoked worker selection |
-| Waiting-list enrollment | One active candidate/skill episode with server-controlled join time |
-| Placement create/start | Actual parties + candidate-wide exclusivity + queue effects + history |
-| Replacement request | Coverage/owner validation + unique active request + original state + fixed SLA |
-| Replacement reservation | Request offer and exclusive candidate claim agree across all skill queues |
-| Replacement completion | New ACTIVE placement + original REPLACED + request COMPLETED + timestamp/SLA agree |
-| Evaluation/referral | Immutable submission/finalized release and one intended referral with evidence |
-| Role/account change | Audit and current authority agree; stale session cannot preserve revoked permission |
+Final M3 architecture:
+- email/password login;
+- BCrypt or standard Spring password encoder;
+- JWT access token;
+- role from authenticated User;
+- account status enforced.
 
-Two concurrent replacement requests cannot reserve one worker for incompatible placements. Duplicate submission has one accepted snapshot; repeated request does not reset SLA. Concurrent placement updates cannot overwrite terminal state. Technical locking/versioning is chosen during implementation, not specified as code here.
+No refresh-token infrastructure is required.
 
-Reliable audit and notification intent must be persisted with appropriate consistency. After-commit handling/retries may use simple database-backed patterns; no broker, distributed transaction, microservices or Kubernetes required. A fixture can test matching rules but cannot substitute for real placement/notification integration acceptance.
+## 7. Database
 
-## 8. Security, privacy and storage
+MVP uses a simplified schema in `DATA_MODEL.md`.
 
-Combine authentication + current account status + role + ownership/assignment + field visibility + business-state validation. Check access before returning state-sensitive errors. Restricted verification uses separate DTOs and authorized downloads; safe employer projection never includes raw NID, internal notes, emergency contacts or voice evidence.
+H2 may be used for:
+- tests;
+- local/demo startup.
 
-Passwords are hashed, signing/database/provider secrets are backend environment configuration. Browser bundle configuration is public. No real sensitive identities in development/demo.
+MySQL may be used:
+- final local setup;
+- deployment.
 
-Plan a file-storage abstraction supporting configurable local filesystem storage initially and object storage later. Persist metadata/references: owner, storage key, safe display filename, size, MIME/type and lifecycle. Do not put binaries in unrelated tables or expose filesystem paths as public URLs. Validate upload size/filename/extension/MIME, authorize downloads and handle missing files safely. Storage location, limits, retention and provider are selected in CV/upload module M5.4; persistence/backup must be considered for deployment.
+Do not add database infrastructure purely for production realism.
 
-## 9. Integration boundaries and deployment
+## 8. Transactions / Concurrency
 
-| Integration | MVP / future |
-| --- | --- |
-| Web Speech API | Optional browser speech-to-text; editable confirmed input and manual fallback |
-| Verification | Manual/platform review; no government-authorized claim |
-| Notifications | IN_APP required; email/SMS/voice providers deferred |
-| Institutes | Operational referral updates without portal |
-| Payments/AI | Deferred, no simulated production completion |
+Use transactions where business correctness depends on multiple writes.
 
-Future providers sit behind service/adapters with clear timeout/failure/retry semantics; unavailable providers must not disable core manual/in-app MVP workflows.
+Most important:
+- booking a slot;
+- queue reservation;
+- placement creation;
+- replacement selection/completion.
 
-Deployment model: browser loads React static assets, calls Spring Boot over HTTPS, and Spring Boot accesses private MySQL/storage. Frontend/backend may deploy separately with explicit CORS and secure backend configuration. No hosting provider chosen in this module, no services deployed. M1 plans local tooling/Compose; M22 owns production configuration and smoke verification.
+Replacement candidate reservation must prevent obvious double-selection.
 
-## 10. Compatibility and open choices
+A reasonable JPA transaction/locking solution is enough for the university project. Do not build distributed locking.
 
-### Confirmed backend foundation (M1.2)
+## 9. OOP Pattern Architecture
 
-Java 21, Spring Boot 4.1.1, Maven 3.9.16 via Wrapper 3.3.4. Application root `backend/`; coordinates `com.marketplace:verified-career-marketplace-backend:0.0.1-SNAPSHOT`, JAR packaging, base package `com.marketplace`, entry point `VerifiedCareerMarketplaceApplication`. Application name is `verified-career-marketplace-backend`. The unchanged default backend port is 8080.
+### Strategy
 
-Only `common.health` and `config` are currently needed beneath the application root. Public GET `/api/health` returns the typed `HealthResponse` with `status=UP`. The temporary filter chain requires authentication everywhere else; generated-user auto-configuration is excluded, CSRF remains enabled and CORS/JWT/RBAC are deferred. No business routes or entities exist. In-memory H2 is a development/test bootstrap with DDL and SQL initialization disabled; the console is disabled. See [backend instructions](../backend/README.md) for dependencies, commands and validation.
+```text
+AssessmentStrategy
+├── TechAssessmentStrategy
+└── VoiceAssessmentStrategy
+```
 
-Preserve FIFO among eligible workers, dual-party confirmation, 24-hour SLA from accepted request to new ACTIVE start, and separate configured coverage. No new state/role/product workflow introduced.
+### Factory
 
-Open: frontend versions, ID/SQL types, migration and lock/claim implementation, exact pagination DTO, JWT/session controls, upload storage, commercial coverage and offer-expiry values. See roadmap dependency gates for M12/M15 and incremental security/testing. Backend infrastructure does not implement the planned business architecture.
+```text
+AssessmentStrategyFactory
+→ chooses strategy by candidate/assessment context
+```
+
+### Singleton
+
+```text
+ReplacementQueueManager
+```
+
+Implemented as a Spring `@Service` (singleton by default).
+
+### Observer
+
+Spring application events/listeners.
+
+No broker.
+
+## 10. Voice Flow
+
+```text
+Microphone
+→ Web Speech API
+→ Bangla transcript
+→ editable form field
+→ user confirms
+→ normal API request
+```
+
+No audio persistence is required.
+
+## 11. File Handling
+
+TECH CV:
+- configurable local upload directory is sufficient;
+- validate size/type;
+- sanitize file name/storage path;
+- store only metadata/reference in DB.
+
+Cloud object storage is deferred.
+
+## 12. Events
+
+Useful events:
+- `CandidateVerifiedEvent`
+- `EvaluationCompletedEvent`
+- `PlacementCreatedEvent`
+- `ReplacementRequestedEvent`
+- `ReplacementCompletedEvent`
+- `ReferralCreatedEvent`
+
+Listeners:
+- Notification listener
+- Audit listener
+
+## 13. Deployment
+
+Deployment is a late optional/showcase enhancement.
+
+Do not block project completion on complex hosting.
+
+A reliable local demo is acceptable. A simple hosted demo is a stretch goal if time/credits remain.

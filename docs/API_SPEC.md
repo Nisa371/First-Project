@@ -1,309 +1,329 @@
-# Planned REST API Specification
+# API Specification
 
-> M1.2 | Version 1.2 | Health infrastructure implemented; all business endpoints remain planned.
-> Follow [MASTER_SPEC.md](../MASTER_SPEC.md), [roles](ROLES_AND_PERMISSIONS.md), [workflows](BUSINESS_WORKFLOWS.md), [standards](DEVELOPMENT_STANDARDS.md), [architecture](ARCHITECTURE.md), [database plan](DATABASE.md) and [roadmap](ROADMAP.md).
+## 1. Global Rules
 
-## 1. Global contract rules
+Base prefix:
 
-Base /api, no /api/v1 requirement. JWT bearer authentication is planned for protected routes; token lifecycle/storage decisions are M4 work. All protected access requires current ACTIVE status plus role, ownership/assignment, safe projection and workflow guards. CLIENT IDs never prove ownership. ADMIN does not automatically inherit candidate/employer endpoints.
-
-Return typed success bodies directly, paginated where needed. Central errors use timestamp/status/**error**/message/path with optional fieldErrors; preserve M0.4, not illustrative code naming. Baseline errors for every protected endpoint: 401 invalid/missing authentication, 403 permission/status mismatch, 404 missing or consistently concealed private resource, 400 malformed/invalid input, 409 state/concurrency conflict, 500 safe unexpected failure. Table errors emphasize domain-specific cases, not remove baseline protections.
-
-GET never changes business state. PUT replaces only the documented client-editable representation; omission/null semantics must be finalized before coding. Explicit service actions own state transitions. API plans do not authorize generic entity binding or arbitrary PATCH state fields. Newly created resources return 201; identical logical retries can return 200 existing outcome; 204 has no body.
-
-IDs in examples are symbolic/illustrative; final ID strategy is deferred. Payload fields are conceptual contract scope, not final exhaustive OpenAPI schemas. Each implementing module must finalize validation, nullability, DTO names and stable responses before exposure.
-
-## 2. Planned endpoint catalog
-
-### Infrastructure health (M1.2)
-
-`GET /api/health` is public and returns HTTP 200, `application/json`, with typed body `{"status":"UP"}`. It checks backend availability only; it is not a database readiness or production monitoring guarantee. No credentials, environment or internal configuration are exposed. M1.5 uses it for connectivity verification. Only this health endpoint is implemented. Temporary M1.2 security returns 401 for other anonymous GET requests, including direct `/error` access; CSRF remains enabled for unsafe methods. Final security/error JSON integration remains M4/M3.2 work.
-
-### Authentication
-
-| Method/path | Access/purpose boundary | Conceptual request | Success response | Major errors |
-| --- | --- | --- | --- | --- |
-| POST /api/auth/register | Public; CANDIDATE or EMPLOYER only | email, password, accountType; candidateType only for CANDIDATE | 201 RegistrationResponse: account ID, allowed membership, ACTIVE and initial profile | 400 validation/privileged role, 409 duplicate identifier |
-| POST /api/auth/login | Public credentials; current account policy | email, password | 200 LoginResponse with bearer access token and expiry metadata | 401 invalid credentials; restricted-account response finalized in M4, no business access |
-| GET /api/auth/me | Authenticated ACTIVE user | None | 200 CurrentUserResponse: own safe identity, memberships, status | 401/403; no credential/hash/secret |
-
-### Candidate self-service and employer-safe search
-
-| Method/path | Access/purpose boundary | Conceptual request | Success response | Major errors |
-| --- | --- | --- | --- | --- |
-| GET /api/candidates/me | CANDIDATE own | None | 200 CandidateSelfResponse | 404 no applicable profile |
-| PUT /api/candidates/me | CANDIDATE own | Complete editable profile representation; no authoritative fields | 200 CandidateSelfResponse with derived completeness | 400 invalid/tampered fields; 409 conflicting change |
-| GET /api/skills | ACTIVE roles needing catalog | Allowlisted search/page | 200 page of active skill/category summaries | 400 unsupported filter |
-| POST /api/candidates/me/skills | CANDIDATE own | skillId, optional self-declared proficiency | 201 skill link; existing outcome on identical retry | 404 skill, 409 incompatible duplicate |
-| DELETE /api/candidates/me/skills/{skillId} | CANDIDATE own | No body | 204 permitted removal; retain referenced history | 409 referenced-workflow conflict |
-| POST /api/candidates/me/cv | CANDIDATE TECH own | Validated multipart CV file | 201 safe CV metadata/reference | 400 invalid upload; no public filesystem path |
-| GET /api/candidates | EMPLOYER with complete profile; ACTIVE | page,size, supported candidateType/skill/verificationStatus/location/availability | 200 page CandidateEmployerViewResponse for eligible released candidates | 400 filter; 403 access; no raw verification evidence |
-| GET /api/candidates/{candidateId} | EMPLOYER eligible hiring context | Candidate ID | 200 eligible CandidateEmployerViewResponse | 404 missing/concealed/ineligible; no own/admin/evaluator overload |
-
-### Employer and jobs
-
-| Method/path | Access/purpose boundary | Conceptual request | Success response | Major errors |
-| --- | --- | --- | --- | --- |
-| GET /api/employers/me | EMPLOYER own | None | 200 EmployerSelfResponse | 404 missing profile |
-| PUT /api/employers/me | EMPLOYER own | Complete editable company representation | 200 EmployerSelfResponse | 400 input/tampering; 409 stale change |
-| POST /api/jobs | EMPLOYER ACTIVE/complete profile | title, description, location, employmentType, candidateType, skillIds, saveAsDraft intent | 201 JobResponse | 400 invalid publish data |
-| GET /api/jobs | ACTIVE permitted roles | page,size,status,location; owner context derived | 200 safe page; candidates see eligible/public ACTIVE jobs, employers own drafts and public jobs | 400 filter; no other employer private drafts |
-| GET /api/jobs/{jobId} | Eligible viewer; employer own or public safe job | Job ID | 200 role-safe JobResponse | 404 missing/private |
-| PUT /api/jobs/{jobId} | EMPLOYER owner | Complete editable job fields, not employerId or arbitrary lifecycle status | 200 JobResponse | 403/404 owner; 409 closed/archived update conflict |
-| POST /api/jobs/{jobId}/publish | EMPLOYER owner | No arbitrary state field | 200 ACTIVE JobResponse after validation | 409 invalid transition; 400 incomplete job |
-| POST /api/jobs/{jobId}/close | EMPLOYER owner; admin moderation through dedicated admin path later | Reason if needed | 200 CLOSED JobResponse | 409 invalid state |
-| POST /api/jobs/{jobId}/archive | EMPLOYER owner | Optional safe reason | 200 ARCHIVED from DRAFT/CLOSED only | 409 ACTIVE must first close |
-| POST /api/jobs/{jobId}/reopen | EMPLOYER owner | No state field | 200 revalidated ACTIVE from CLOSED | 409 archived/invalid state |
-| POST /api/jobs/{jobId}/shortlist | EMPLOYER owner of ACTIVE job | candidateId | 201 membership or 200 identical existing membership | 409 candidate ineligible; 403/404 ownership |
-| DELETE /api/jobs/{jobId}/shortlist/{candidateId} | EMPLOYER owner | No body | 204 membership removal, history retained | 403/404 owner |
-
-### Assessment and evaluator
-
-| Method/path | Access/purpose boundary | Conceptual request | Success response | Major errors |
-| --- | --- | --- | --- | --- |
-| GET /api/assessments | CANDIDATE eligible catalog | page,size,candidateType/skill as allowed | 200 applicable assessment summaries | 400 unsupported filters |
-| GET /api/assessments/{id} | CANDIDATE eligible assessment | Assessment ID | 200 candidate-safe definition/questions without keys | 404 ineligible/missing |
-| POST /api/admin/assessments | ADMIN assessment management duty | Definition/questions/rubric and release policy inputs | 201 managed assessment definition | 400 validation; 403 duty |
-| POST /api/assessment-attempts | CANDIDATE own eligible COMPLETE profile | assessmentId | 201 IN_PROGRESS attempt | 409 attempt policy/ineligibility |
-| GET /api/assessment-attempts/{id} | CANDIDATE owner | Attempt ID | 200 own submission/state and only released result view | 404 missing/private |
-| PUT /api/assessment-attempts/{id}/answers | CANDIDATE owner; IN_PROGRESS only | Complete draft answers/submission | 200 saved draft | 409 already submitted/expired |
-| POST /api/assessment-attempts/{id}/submit | CANDIDATE owner | Confirmed answers/submission snapshot | 200 accepted immutable attempt state; no fake immediate result | 409 changed retry, expired or invalid state |
-| GET /api/evaluator/submissions | EVALUATOR assigned workload | page,size,allowed state filter | 200 page assigned submission summaries | 403 role |
-| GET /api/evaluator/submissions/{id} | EVALUATOR assigned non-self case | Attempt ID | 200 duty-limited review projection | 404 unrelated |
-| POST /api/evaluator/submissions/{id}/evaluation | EVALUATOR assigned scoring duty; SUBMITTED/UNDER_REVIEW | rubric score, feedback, separate internal notes, recommendation | 201 finalized EVALUATED result, initially UNRELEASED | 409 unsubmitted/conflict; 403 self-review |
-| POST /api/evaluator/submissions/{id}/release | EVALUATOR assigned release duty | resultVersion, candidate/hiring-safe release scope | 200 RELEASED safe result | 409 stale/unfinalized; 400 unsafe scope |
-| POST /api/evaluator/interviews/{bookingId}/notes | EVALUATOR assigned consultation/interview | Restricted notes and permitted outcome | 201 attributed note | 404 unrelated booking; 409 state |
-
-### Appointments and voice
-
-| Method/path | Access/purpose boundary | Conceptual request | Success response | Major errors |
-| --- | --- | --- | --- | --- |
-| GET /api/interview-slots | ACTIVE eligible candidate/employer/evaluator | Future date range,purpose,page,size | 200 available safe slot page | 400 invalid range; no unrelated booking details |
-| POST /api/bookings | CANDIDATE own consultation; EMPLOYER own job interview; assigned scheduler | slotId,purpose; candidateId/jobId only for authorized employer relationship | 201 BOOKED; identical retry returns existing | 409 BOOKING_CONFLICT; 400 past slot |
-| GET /api/bookings/me | CANDIDATE/EMPLOYER/EVALUATOR participant | page,size | 200 own relevant booking page | 403 unrelated role |
-| POST /api/bookings/{id}/cancel | Own/assigned cancellation permission | Safe reason if required | 200 CANCELLED; idempotent repeat | 409 invalid state/time; 403/404 access |
-| POST /api/voice/registrations | CANDIDATE TRADE own | confirmed transcript, language; candidate context derived | 201 restricted own metadata acknowledgment | 400 unconfirmed/input; no biometric claim |
-
-### Verification and waiting list
-
-| Method/path | Access/purpose boundary | Conceptual request | Success response | Major errors |
-| --- | --- | --- | --- | --- |
-| POST /api/verification/requests | CANDIDATE own applicable case | Permitted confirmed evidence references/fields | 201 PENDING case with safe status | 400 invalid evidence; 409 active-case duplicate |
-| GET /api/verification/me | CANDIDATE own | None | 200 safe own status and policy-permitted submitted view | 404 no submitted case |
-| GET /api/evaluator/verifications | EVALUATOR assigned verification duty | page,size,status | 200 assigned safe case summaries | 403 duty |
-| GET /api/evaluator/verifications/{id} | EVALUATOR assigned verification duty; not self | Case ID | 200 minimum required restricted review evidence | 404 unrelated; 403 self-review |
-| POST /api/evaluator/verifications/{id}/start-review | Assigned reviewer | No arbitrary status field | 200 IN_REVIEW from allowed state | 409 invalid state |
-| POST /api/evaluator/verifications/{id}/review | Assigned authorized approval duty | decision APPROVE/REJECT/FLAG, findings and safe feedback | 200 reviewed case; server maps decision to VERIFIED/FAILED/FLAGGED | 409 not IN_REVIEW; 403 duty/self-approval |
-| GET /api/waiting-list/me | CANDIDATE TRADE own | page,size | 200 own queue/availability summaries; no roster/priority editing | 403 wrong type |
-| POST /api/candidates/me/availability | CANDIDATE own | availability AVAILABLE/UNAVAILABLE | 200 own availability; system reconciles eligibility/queue | 409 incompatible workflow change |
-
-### Placement and replacement
-
-| Method/path | Access/purpose boundary | Conceptual request | Success response | Major errors |
-| --- | --- | --- | --- | --- |
-| GET /api/placements/me | CANDIDATE or EMPLOYER actual party | page,size | 200 party-safe placement page | 403 nonparty role |
-| POST /api/placements | EMPLOYER hiring owner | jobId,candidateId,plannedStartAt and permitted agreement context | 201 PENDING via validated hiring workflow | 409 ineligible/claimed/unconfirmed; candidate creation forbidden |
-| POST /api/replacements | EMPLOYER original placement owner | placementId,reason,optional safe notes | 201 REQUESTED/SLA or 200 same accepted intent | 409 REPLACEMENT_NOT_ELIGIBLE/DUPLICATE_RESOURCE |
-| GET /api/replacements | EMPLOYER own | page,size,status | 200 owned request page | 403 other role |
-| GET /api/replacements/{id} | EMPLOYER owns request | Request ID | 200 safe request/SLA/current offer | 404 missing/private |
-| GET /api/replacement-offers/me | CANDIDATE selected | page,size | 200 own opportunity-only page | 403 noncandidate |
-| POST /api/replacement-offers/{offerId}/accept | Selected CANDIDATE or requesting EMPLOYER | Current offer identity; actor confirmation only | 200 own confirmation; server ACCEPTED only when both confirmed | 409 expired/stale/ineligible offer |
-| POST /api/replacement-offers/{offerId}/decline | Selected CANDIDATE or requesting EMPLOYER | Safe reason | 200 recorded response; system releases/rematches | 409 consumed/stale offer |
-
-### Referrals, notifications and administration
-
-| Method/path | Access/purpose boundary | Conceptual request | Success response | Major errors |
-| --- | --- | --- | --- | --- |
-| GET /api/referrals/me | CANDIDATE own | page,size | 200 own referral page | 403 other role |
-| POST /api/referrals | EVALUATOR assigned referral duty or ADMIN operation | candidateId,evaluationResultId,programId | 201 REFERRED or existing same intent | 409 missing need/duplicate conflict; 403 assignment |
-| GET /api/training-programs | ACTIVE eligible roles | skill,page,size | 200 available program page | 400 filters |
-| GET /api/notifications/me | Any ACTIVE role; own only | page,size,read state | 200 own IN_APP notification page | 403 restricted account; no restoration via inbox |
-| POST /api/notifications/{id}/read | Recipient own | No body | 200 READ safe notification; repeat no-op | 404 private/missing |
-| GET /api/admin/analytics | ADMIN operational duty | Allowlisted aggregate scope | 200 safe aggregate response | 403 role/duty |
-| GET /api/admin/audit-logs | ADMIN authorized investigation | page,size,actor,action,entityType,date range | 200 restricted safe audit page | 400 filters; 403 duty |
-| GET /api/admin/users | ADMIN user-management duty | page,size,allowed role/status filter | 200 safe account summaries, no credentials | 403 duty |
-
-## 3. Deliberate endpoint choices and remaining workflow surfaces
-
-- Job archival uses /close and /archive, not destructive DELETE /api/jobs/{jobId}. ACTIVE must close before archive. History is retained.
-- Placement listing uses /api/placements/me for both actual party roles; do not also invent /api/employer/placements as an alias.
-- Candidate search/detail above is employer-safe only. Evaluator review is through assigned /api/evaluator/...; admin operational views are separate /api/admin/... contracts to finalize later.
-- No public/manual queue-enrollment or priority endpoint. Availability expresses candidate intent; server controls QUEUED/RESERVED/EXITED and FIFO.
-- Reviewer decision actions do not directly bind status. /start-review and /review enforce W11 guards and duty. Admin equivalents must have the same safeguards, not an unrestricted update endpoint.
-- Notification read-all is not adopted in the initial plan. No arbitrary candidate/employer “send notification” API.
-- Privileged slots/outcomes, assessment management/corrections, verification reopen/flag, account status/role actions, institute/program management, referral operational transitions, placement agreement/start/termination, replacement retry and oversight require explicit scoped actions in their owning modules. Names/payloads are not finalized here; follow W01–W21 and M0.2.
-- Placement PENDING creation requires the W14 confirmed-party workflow, including attributed candidate agreement. A generic employer claim is not proof of candidate consent. Authoritative start/completion is produced only by that workflow; no /replacements/{id} update accepts status=COMPLETED.
-- Offer acceptance records one actor's confirmation. Candidate cannot approve the employer's replacement request or forge employer confirmation. End-to-end finalization requires actual replacement start and linked records.
-- Logout/session revocation, renewal and recovery remain explicit M4 contract decisions. The three auth routes above alone do not claim a complete auth subsystem.
-
-## 4. API-level access summary
-
-Legend: ✅ own ordinary scope; ⚠️ scoped/conditional; ❌ not available for that role. All entries still require current account status and field restrictions.
-
-| Endpoint group | Candidate | Employer | Evaluator | Admin |
-| --- | --- | --- | --- | --- |
-| Auth me / own notifications | ✅ | ✅ | ✅ | ✅ |
-| Candidate self-profile/skills | ✅ | ❌ | ❌ | ❌ |
-| Employer self-profile | ❌ | ✅ | ❌ | ❌ |
-| Jobs read | ⚠️ Eligible/public | ⚠️ Own/public | ⚠️ Relevant/public | ⚠️ Operational |
-| Job create/edit/shortlist | ❌ | ⚠️ Owner | ❌ | ⚠️ Dedicated moderation only |
-| Employer-safe candidate search | ❌ | ⚠️ Eligible | ❌ Use assigned workload | ❌ Use operational surface |
-| Candidate attempts | ⚠️ Own | ❌ | ❌ Use submissions | ❌ Use operational surface |
-| Evaluation/verification review | ❌ | ❌ | ⚠️ Assigned duty, no self-review | ⚠️ Dedicated authorized operations |
-| Booking | ⚠️ Own | ⚠️ Own hiring | ⚠️ Assigned/participant | ⚠️ Operational scheduling |
-| Voice and verification self | ⚠️ Own applicable | ❌ | ❌ | ❌ |
-| Waiting-list self | ⚠️ TRADE own | ❌ | ❌ | ❌ |
-| Operational queue | ❌ | ❌ | ❌ | ⚠️ Recheck/removal, not priority edits |
-| Placements me | ⚠️ Actual party | ⚠️ Actual party | ❌ | ❌ Use operations |
-| Replacement requests | ❌ Offer-only access | ⚠️ Owned eligible | ❌ | ⚠️ Dedicated oversight |
-| Own replacement offer response | ⚠️ Selected worker | ⚠️ Requesting employer | ❌ | ❌ No impersonation |
-| Referrals | ⚠️ Own read | ❌ | ⚠️ Assigned duty | ⚠️ Operational |
-| Analytics/users/audits | ❌ | ❌ | ❌ | ⚠️ Authorized duty |
-
-Role assignment is only through trusted administrative operations. Public registration accountType is a limited CANDIDATE/EMPLOYER choice, never arbitrary roles input.
-
-## 5. Conceptual request/response examples
-
-Values below are fictional or nonfunctional placeholders, not live credentials, tokens, IDs or seed data. Responses omit unrelated fields for readability; protected fields remain server-controlled.
-
-### Registration and login
-
-POST /api/auth/register:
-
-```json
-{"email":"rahim.demo@example.invalid","password":"<user-supplied-secret>","accountType":"CANDIDATE","candidateType":"TRADE"}
+```text
+/api
 ```
 
-201 response:
+Use:
+- DTOs;
+- Bean Validation;
+- backend role/ownership checks;
+- safe error responses;
+- direct typed success bodies.
+
+Do not expose JPA entities directly.
+
+Do not add `/api/v1` unless later explicitly requested.
+
+## 2. Error Shape
+
+Target:
 
 ```json
-{"userId":"<id>","roles":["CANDIDATE"],"accountStatus":"ACTIVE","candidateType":"TRADE","profileStatus":"INCOMPLETE"}
+{
+  "timestamp": "2026-09-13T12:00:00Z",
+  "status": 400,
+  "error": "VALIDATION_ERROR",
+  "message": "Request validation failed.",
+  "path": "/api/example",
+  "fieldErrors": {
+    "field": "Reason"
+  }
+}
 ```
 
-POST /api/auth/login:
+Keep the machine-readable field name `error`.
+
+## 3. Infrastructure
+
+### GET `/api/health`
+
+Public.
+
+Response:
 
 ```json
-{"email":"rahim.demo@example.invalid","password":"<user-supplied-secret>"}
+{"status":"UP"}
 ```
 
-200 response:
+Already established in M1.2.
+
+## 4. Authentication
+
+### POST `/api/auth/register`
+
+Public.
+
+Creates:
+- CANDIDATE with candidateType; or
+- EMPLOYER.
+
+No evaluator/admin public signup. Request uses an allowlisted `accountType` (not an editable operational `role`):
 
 ```json
-{"accessToken":"<issued-bearer-token>","tokenType":"Bearer","expiresAt":"<ISO-8601-expiry>"}
+{"accountType":"CANDIDATE","candidateType":"TECH","fullName":"Demo Candidate","email":"candidate@example.com","password":"your-local-password"}
 ```
 
-A bearer token delivered by login is an authentication credential, not a signing secret. Password hashes, JWT signing keys and infrastructure credentials are never returned. Treat token response/logging as sensitive; no real token is present here.
+For TRADE use `candidateType: "TRADE"`. For EMPLOYER send `accountType`, `companyName`, `email`, `password`; omit `candidateType`. Candidate full name/company name is required for its respective account type. Passwords require 8–72 characters and at most 72 UTF-8 bytes. Email is normalized to lowercase. Unknown JSON fields (including role, score and status) are rejected.
 
-### Candidate profile
+Returns HTTP 201 with the same token/current-user shape as login. Duplicate email returns 409 `EMAIL_IN_USE`; validation returns 400. User, profile and registration audit entry are created atomically.
 
-PUT /api/candidates/me, editable TRADE profile example:
+### POST `/api/auth/login`
 
-```json
-{"fullName":"Rahim Demo","phone":"<fictional-test-phone>","location":"Demo Area","bio":"AC technician"}
+Public.
+
+Request: `{"email":"candidate@example.com","password":"your-local-password"}`.
+
+Returns `{"token":"<JWT>","tokenType":"Bearer","expiresIn":3600,"user":{"id":1,"email":"candidate@example.com","role":"CANDIDATE","candidateType":"TECH","displayName":"Demo Candidate"}}`.
+
+Invalid credentials return 401 `INVALID_CREDENTIALS`; non-ACTIVE accounts return 403 `ACCOUNT_INACTIVE`. Send `Authorization: Bearer <JWT>` on protected calls. Tokens expire without refresh. Password hashes and verification evidence are never returned.
+
+### GET `/api/auth/me`
+
+Authenticated. Returns the `user` object shown above (candidateType is null for non-candidates). Each authenticated request reloads the account’s current role and status, so suspension and role changes apply to existing tokens.
+
+## 5. Candidate
+
+### GET `/api/candidates/me`
+### PUT `/api/candidates/me`
+
+Candidate self-service. PUT accepts `fullName`, `phone`, `location`, `bio`, `educationSummary`, `experienceSummary`, `availability`, `primaryTradeCategory` and `portfolioUrl`. Name and availability are required; track is immutable. TECH stores education/HTTP(S) portfolio; TRADE stores primary trade. Phone accepts digits, spaces, `+`, parentheses and hyphens. Responses include skills, CV display filename, latest platform verification status and released assessment results only.
+
+### GET `/api/skills`
+
+Authenticated active users. Returns the active skill catalog (`id`, `name`, `category`). A small idempotent starter catalog is available at startup; test fixtures disable it with `app.skills.seed-catalog=false`.
+
+### POST `/api/candidates/me/skills`
+### DELETE `/api/candidates/me/skills/{skillId}`
+
+Candidate self-service. POST accepts `skillId` and optional `proficiencyLevel` (self-reported). Duplicate skills return 409. Both operations return the updated own-profile DTO.
+
+### POST `/api/candidates/me/cv`
+
+TECH candidate. Multipart field `file`: PDF only, at most 5 MB, `.pdf` extension, `application/pdf` content type and PDF signature required. Path-containing filenames are rejected. Storage uses generated names outside public assets; successful replacement removes the old file and rollback removes the new file.
+
+### GET `/api/candidates/me/cv`
+### GET `/api/candidates/{id}/cv`
+
+Own CV for candidates; active candidate CVs for employers. Authenticated attachment download with `no-store`; candidates cannot download another candidate's CV. Stored paths are never returned.
+
+### GET `/api/candidates`
+
+M4 access: employers. Operational-role search can be extended with its later workflow requirements.
+
+Filters: `candidateType`, case-insensitive literal `location`, `skillId`, `availability`, and zero-based `page`. Returns `{content, totalElements, page, totalPages}`, 12 per page, newest candidate ID first. Only ACTIVE candidate accounts appear. No AI ranking. Cards include track, name, location, bio/experience, availability, trade, portfolio, CV availability, skills, latest verification status and released score/recommendation pairs. They exclude phone/email, identity references, stored filenames and internal notes.
+
+Employers never receive raw verification evidence/internal evaluator notes.
+
+## 6. Employer / Jobs
+
+### GET `/api/employers/me`
+### PUT `/api/employers/me`
+
+Employer self-service. PUT accepts `companyName` (required), `industry`, `contactPhone`, `address`, `description`; ownership always comes from the authenticated account.
+
+### POST `/api/jobs`
+### GET `/api/jobs`
+### GET `/api/jobs/{id}`
+### PUT `/api/jobs/{id}`
+### POST `/api/jobs/{id}/close`
+
+Employer-only in M4; list and detail are restricted to the signed-in employer's jobs. Create/edit accepts `title`, `description`, `location`, `candidateType` (required) and optional `requiredSkillId`. Creation sets ACTIVE on the server. Closed jobs cannot be edited/reopened; close is idempotent. Cross-owner access returns 404. Responses include required skill name, status, creation time and shortlist count.
+
+### POST `/api/jobs/{jobId}/shortlist/{candidateId}`
+### DELETE `/api/jobs/{jobId}/shortlist/{candidateId}`
+
+### GET `/api/jobs/{jobId}/shortlist`
+
+All shortlist operations require ownership of the job. Add requires an ACTIVE job and an ACTIVE candidate account that is AVAILABLE and matches the job track/required skill. These matching checks do not imply verified readiness or placement eligibility; those belong to later workflows. Duplicate additions return 409. The job lock serializes additions against close; the unique constraint protects duplicate records. Owners can review/remove shortlist entries after closing. GET returns employer-safe candidate cards for active candidate accounts.
+
+## 7. Assessments (M5)
+
+Candidate-only endpoints:
+
+| Method | Path | Contract |
+| --- | --- | --- |
+| GET | `/api/assessments` | Active, nonempty assessments matching the authenticated candidate’s immutable track. |
+| GET | `/api/assessments/{id}` | Eligible assessment, with question IDs/prompts/options; never answer keys. |
+| POST | `/api/assessments/{id}/attempts` | Start or resume the candidate’s one attempt for this assessment. |
+| GET | `/api/assessment-attempts/me` | Own attempt history, including inactive assessments. |
+| GET | `/api/assessment-attempts/{id}` | Own saved attempt and released result. |
+| PUT | `/api/assessment-attempts/{id}/answers` | Replace saved answers: `{"answers":{"12":"A","13":"C"}}`. Question IDs must belong to the attempt; options are A–D. |
+| POST | `/api/assessment-attempts/{id}/submit` | Require every question answered; atomically score and lock the attempt. Repeat submission returns the existing state. |
+
+Attempt DTO: `id`, `assessment`, `status`, `answers`, `startedAt`, `submittedAt`, `autoScore`, `result`. Candidate `autoScore` and `result` stay null until release. A released result contains `score`, `recommendation`, `feedback`; internal notes are never included. TECH uses weighted percentage scoring rounded to two decimals. TRADE uses manual evaluator scoring (null automatic score). Both demos are untimed.
+
+Evaluator-only endpoints:
+
+| Method | Path | Contract |
+| --- | --- | --- |
+| GET | `/api/evaluator/attempts` | Submitted/evaluated work queue in submission order. |
+| GET | `/api/evaluator/attempts/{id}` | Candidate name, submitted answers, auto-score, saved draft, internal notes, `released`, `editable`. |
+| PUT | `/api/evaluator/attempts/{id}/evaluate` | Save draft: `score` (0–100), `recommendation` (HIRE_READY / NEEDS_TRAINING / REJECTED), required `feedback` (max 3000), optional `internalNotes` (max 3000). |
+| POST | `/api/evaluator/attempts/{id}/release` | Release saved draft and transition SUBMITTED → EVALUATED. Released reviews are final. |
+
+First draft assigns the authenticated evaluator. Other evaluators can inspect but cannot overwrite or release that draft. No client-supplied evaluator/candidate ID, auto-score, status or release flag is accepted. Candidate feedback is separate from internal notes; employer profile/search views include only released score/recommendation.
+
+## 8. Booking (M5)
+
+| Method | Path | Contract |
+| --- | --- | --- |
+| GET | `/api/appointment-slots` | Candidate: active future slots with `id`, `startTime`, `endTime`, `capacity`, `remaining`, `active`. |
+| POST | `/api/bookings` | Candidate: `{ "slotId": 1, "purpose": "CONSULTATION", "notes": "Optional context" }`; purpose also supports INTERVIEW. Returns 201. |
+| GET | `/api/bookings/me` | Candidate’s booking history. |
+| POST | `/api/bookings/{id}/cancel` | Owner cancels an upcoming BOOKED appointment; repeat cancellation is harmless. |
+| GET / POST | `/api/evaluator/appointment-slots` | Evaluator’s slots / publish `{ "startTime": "ISO instant", "endTime": "ISO instant", "capacity": 1 }`. Capacity 1–20; future start and later end required. |
+| POST | `/api/evaluator/appointment-slots/{id}/close` | Owner closes a slot only when it has no BOOKED appointments. |
+| GET | `/api/evaluator/bookings` | Bookings for the current evaluator’s slots, including candidate name, purpose and notes. |
+
+Booking DTO: `id`, `slot`, `candidateName`, `purpose`, `status`, `notes`. Notes have a 2000-character limit. Candidate/employer/status IDs are not accepted. Candidate locks prevent concurrent overlaps across slots; slot locks prevent over-capacity bookings. Overlaps use half-open intervals, so back-to-back appointments are allowed. Slot instants are normalized to milliseconds before checking and persisting. Evaluator slot creation is serialized on the evaluator’s user row to reject overlapping slots. Unavailable/full/overlapping bookings return 409; past or invalid slot creation returns 400; non-owned resources return 404.
+
+## 9. Verification
+
+| Method | Endpoint | Contract |
+| --- | --- | --- |
+| POST | `/api/verifications/me` | Candidate only; `{identityReference}` (required, nonblank, max 255). Returns 201 status record. |
+| GET | `/api/verifications/me` | Own history, newest submission first: `{id,status,submittedAt,reviewedAt}[]`. No evidence or internal notes. |
+| GET | `/api/evaluator/verifications` | Evaluator-only pending/in-review cases, oldest first. |
+| GET | `/api/evaluator/verifications/{id}` | Restricted review detail with candidate name/track/trade/location, identity reference, status, notes and timestamps. |
+| POST | `/api/evaluator/verifications/{id}/review` | `{status,notes}`; status must be VERIFIED, FAILED or FLAGGED; notes required, max 3000. Final decision returns restricted detail. |
+| GET | `/api/candidates/me/readiness` | Own `{eligible,checks:[{code,passed}]}` for TRADE readiness. No internal evaluation or verification data. |
+
+Candidates cannot supply status, reviewer, timestamps or another candidate ID. Submission is serialized on the candidate; another submission is allowed only after FAILED/FLAGGED. Reviews lock the record and are final; duplicate submission/final review conflicts return 409. No actual NID provider or evidence uploads are used. Identity references and review notes are evaluator-only; employer search continues to return safe status only.
+
+Readiness requires TRADE, ACTIVE account, latest VERIFIED record, active TRADE skill and category, relevant released HIRE_READY evaluation, AVAILABLE, no reservation and no PENDING/ACTIVE placement. `QueueEligibilityService.check(candidateId, requiredSkillId)` is the M7 selection hook; `canAdmit` additionally requires a skill and rejects existing active membership. Call under a candidate lock when implementing queue mutations. No queue mutation or queue priority is exposed by M6.
+
+## 10. Waiting List
+
+| Method | Endpoint | Contract |
+|---|---|---|
+| GET | `/api/waiting-list/me` | Candidate's queue history, status and current per-skill position. |
+| POST | `/api/waiting-list/me` | Candidate admission with `{ "skillId": 1 }`; requires M6 readiness and no duplicate active membership. |
+| POST | `/api/waiting-list/{id}/leave` | Owner may withdraw a QUEUED entry; reserved entries cannot be withdrawn. |
+| GET | `/api/admin/waiting-list` | Admin active waiting room, ordered by joined time then ID. |
+
+Position counts QUEUED entries in the skill, including workers whose readiness changed. Matching skips currently ineligible workers. Priority is never client-supplied. Release retains joined time if eligible; otherwise the entry exits with a reason. Activation exits all of that candidate's queue memberships.
+
+## 11. Placements
+
+| Method | Endpoint | Contract |
+|---|---|---|
+| GET | `/api/placements/me` | Candidate/employer own placements; admin may inspect all. |
+| POST | `/api/placements` | Employer hiring: `{ "jobId": 1, "candidateId": 2 }`. Requires owned ACTIVE job with required active skill, shortlist membership, matching available active candidate and no reservation/PENDING/ACTIVE placement. TRADE also requires M6 readiness. |
+| POST | `/api/placements/{id}/terminate` | Employer owner ends an ACTIVE placement. |
+| POST | `/api/placements/{id}/complete` | Employer owner completes an ACTIVE placement. |
+
+Hiring activates immediately. Server sets start date and a 30-day guarantee for eligible TRADE placements; TECH has no replacement coverage. Neither end action is permitted while a replacement is active. Successful replacement marks the original REPLACED and activates a new placement with its own 30-day TRADE coverage. Responses contain safe candidate/company/job/skill labels, status and coverage dates, never private evidence.
+
+## 12. Replacement
+
+| Method | Endpoint | Contract |
+|---|---|---|
+| POST | `/api/replacements` | Employer: `{ "placementId": 1, "reason": "Worker unavailable" }`, reason required, max 2,000 characters. Requires ownership, ACTIVE placement, unexpired coverage and no conflicting active request. |
+| GET | `/api/replacements` | Requests visible to owning employer, original/selected candidate or admin. |
+| GET | `/api/replacements/{id}` | Same visibility. |
+| GET | `/api/admin/replacements` | Admin inspection. |
+| POST | `/api/replacements/{id}/accept` | Employer records both-party agreement for CANDIDATE_SELECTED. |
+| POST | `/api/replacements/{id}/complete` | Employer activates ACCEPTED selection atomically. |
+| POST | `/api/replacements/{id}/cancel` | Employer cancels selected/accepted request and releases reservation. |
+| POST | `/api/replacements/{id}/retry` | Employer retries FAILED request if original placement remains ACTIVE and no other active request exists. |
+
+Spring singleton `ReplacementQueueManager` derives skill/employer/selection/statuses; FIFO uses joined time then ID, with eligibility rechecked under candidate locks. A stable catalog-row lock serializes replacement mutations across skill queues at MVP scale. No matching worker returns a persisted FAILED response with a useful reason. Accept/complete recheck eligibility; a changed worker is released and matching resumes, returning the actual resulting status (confirmation may be required again).
+
+`requestedAt` and `targetCompletionAt = requestedAt + 24h` never change on retry. Completion records `actualCompletionAt` and ON_TIME when completion <= target, otherwise BREACHED. Before completion, overdue responses derive BREACHED from the server clock without a scheduler; otherwise PENDING. Generated timestamps use millisecond precision. Cancellation/empty queues do not claim successful fulfillment. Generic status/priority/coverage overrides are rejected.
+
+Placement/replacement events synchronously notify in-app recipients and append allowlisted audit actions in the same transaction. Rollback removes both effects. Notification read/read-all endpoints remain owner-scoped.
+
+## 13. Training
+
+### GET `/api/training-programs`
+### GET `/api/referrals/me`
+
+Authorized evaluator/admin:
+
+### POST `/api/referrals`
+
+## 14. Notifications
+
+### GET `/api/notifications/me`
+### POST `/api/notifications/{id}/read`
+
+Optional:
+### POST `/api/notifications/read-all`
+
+if easy/useful.
+
+## 15. Admin Showcase APIs
+
+Keep small:
+
+### GET `/api/admin/stats`
+
+Counts:
+- users/candidates/employers;
+- verified candidates;
+- active jobs;
+- active placements;
+- replacement requests;
+- on-time/breached replacements.
+
+### GET `/api/admin/users`
+### POST `/api/admin/users/{id}/status`
+
+### GET `/api/admin/replacements`
+
+Do not build a huge generic admin API.
+
+## 16. Server-Controlled Fields
+
+Never accept from normal client DTOs:
+- role;
+- accountStatus;
+- verification status;
+- score/recommendation;
+- queue position/priority;
+- placement status;
+- selected replacement candidate;
+- replacement/SLA status;
+- audit metadata.
+
+## 17. Pagination
+
+Use simple convention where needed:
+
+```text
+?page=0&size=20
 ```
 
-Response includes permitted own fields and server-derived profileStatus, not private reviewer notes. Skills are managed through skill endpoints. Existing candidateType is not freely toggled after domain records; type-change review is a separate future contract.
+Do not spend major effort on generic dynamic sort/filter frameworks.
 
-### Job creation
+## 18. Duplicate / Conflict Behavior
 
-```json
-{"title":"AC Technician","description":"Demo facilities role","location":"Demo Area","employmentType":"<approved-value>","candidateType":"TRADE","skillIds":["<skill-id>"],"saveAsDraft":false}
-```
+Return `409` for:
+- duplicate email;
+- duplicate skill association;
+- duplicate shortlist;
+- booking conflict;
+- duplicate active queue entry;
+- conflicting active replacement request;
+- illegal state transition.
 
-201 JobResponse includes id, owner-safe job fields and server-calculated ACTIVE after validation. Employer ID is derived, not supplied. Employment-type values remain to be finalized; placeholder is not a new enum.
+## 19. API Quality
 
-### Assessment submission
+The showcase should have a coherent API, but exact endpoint count is not a grading objective.
 
-```json
-{"answers":[{"questionId":"<question-id>","response":"Demonstration answer"}]}
-```
+Prefer fewer correct endpoints over large speculative CRUD coverage.
 
-200 attempt response:
+### M8 — Training and essential admin
 
-```json
-{"id":"<attempt-id>","status":"SUBMITTED","submittedAt":"2026-09-12T10:00:00Z"}
-```
-
-Later review may change state; no claim of immediate HIRE_READY or released score. Repeated changed answers after submission are rejected.
-
-### Verification review
-
-```json
-{"decision":"APPROVE","findings":"Fictional manual review completed.","candidateFeedback":"Platform review completed."}
-```
-
-200 restricted reviewer response may include case ID/status VERIFIED/reviewedAt, while candidate/employer routes use safe projections. Requires IN_REVIEW, complete required checks and authorized non-self reviewer. APPROVE is an action input, not a new verification status.
-
-### Replacement request
-
-```json
-{"placementId":"<owned-placement-id>","reason":"WORKER_UNAVAILABLE","notes":"Demo worker became unavailable."}
-```
-
-WORKER_UNAVAILABLE is illustrative reason text/code; final allowed reasons must follow coverage policy.
-
-```json
-{"id":"<request-id>","status":"REQUESTED","requestedAt":"2026-09-12T09:00:00Z","targetCompletionAt":"2026-09-13T09:00:00Z","actualCompletionAt":null,"slaStatus":"PENDING"}
-```
-
-Selection/offer is separate, never submitted by employer. Retry does not change these timestamps.
-
-### Notification
-
-GET /api/notifications/me item:
-
-```json
-{"id":"<notification-id>","channel":"IN_APP","eventType":"REPLACEMENT_REQUESTED","title":"Replacement requested","message":"Your request was received.","readAt":null,"createdAt":"2026-09-12T09:00:00Z"}
-```
-
-readAt null represents UNREAD; authenticated recipient marks read. No raw identity data or secret embedded in message.
-
-## 6. Server-controlled fields and state guards
-
-Clients cannot freely assign roles, accountStatus, verificationStatus, assessmentScore, evaluationRecommendation, queuePriority, placementStatus, replacementStatus, slaStatus, audit fields, createdAt or updatedAt. Ownership identifiers, reviewer attribution, selected candidate, request/SLA timing and authoritative status are resolved by server workflow.
-
-A narrowly authorized evaluator supplies a score/recommendation through evaluation DTO; a trusted admin supplies a permitted role/status action through a guarded operation. That does not make these fields editable in generic profile/CRUD DTOs. Public accountType selects only the allowed onboarding role. Rejected tampering must never mutate the authoritative state.
-
-No generic employer PUT /api/replacements/{id} body can set COMPLETED. Queue exhaustion is an explicit FAILED domain outcome; reads of that request still return 200, not an unexplained server error.
-
-## 7. Pagination, filters and duplicate behavior
-
-M0.4 request convention is page=0, size=20, maximum 100 (or documented lower endpoint cap), with allowlisted sort=createdAt,desc and stable tie-breaker. Reject invalid/oversized parameters. Exact pagination response DTO is finalized at implementation; typed page object is required, not uncontrolled Spring serialization.
-
-Examples: /api/jobs?page=0&size=20, /api/candidates?page=0&size=20, /api/notifications/me?page=0&size=20, /api/admin/audit-logs?page=0&size=50.
-
-Candidate filters: candidateType, skill, verificationStatus, location, availability only within eligible employer scope. Job filters: status/location; private draft status never reveals other owners. Audit filters: actor/action/entityType/date range. No arbitrary SQL/property expressions.
-
-Duplicate protection covers assessment submit, shortlist, booking, automatic queue admission, replacement request and referrals. Same logical retry returns existing permitted outcome; conflicting duplicate returns 409. Exact request-id/idempotency transport is deferred, but server guarantees are mandatory. Selection, expiry and acceptance also check current offer identity; stale requests cannot release/consume another claim.
-
-## 8. Error examples
-
-All examples retain error (not code), timestamp and path; no SQL, stack traces or secrets.
-
-```json
-{"timestamp":"2026-09-12T10:00:00Z","status":400,"error":"VALIDATION_ERROR","message":"Request validation failed.","path":"/api/candidates/me","fieldErrors":{"phone":"Phone number is required."}}
-```
-
-```json
-{"timestamp":"2026-09-12T10:00:00Z","status":401,"error":"AUTHENTICATION_REQUIRED","message":"Authentication is required.","path":"/api/auth/me"}
-```
-
-```json
-{"timestamp":"2026-09-12T10:00:00Z","status":403,"error":"ACCESS_DENIED","message":"You do not have permission for this action.","path":"/api/admin/users"}
-```
-
-```json
-{"timestamp":"2026-09-12T10:00:00Z","status":404,"error":"RESOURCE_NOT_FOUND","message":"Resource not found.","path":"/api/jobs/example-id"}
-```
-
-```json
-{"timestamp":"2026-09-12T10:00:00Z","status":409,"error":"DUPLICATE_RESOURCE","message":"An active replacement request already exists for this placement.","path":"/api/replacements"}
-```
-
-Use established DUPLICATE_RESOURCE rather than inventing REPLACEMENT_ALREADY_ACTIVE prematurely. 422 is not initially adopted. Check authorization before revealing conflict details.
-
-## 9. Implementation handoff
-
-This plan fixes resource groups, safety boundaries and conceptual contract shapes, not endpoint implementation. M4 onward must refine exact DTOs/validation/status codes within these conventions and add synchronized examples/tests. Any additional privileged action must be justified by existing roles/workflows and documented before exposure.
-
-No routes, controllers, security config, tokens, test data or dependencies are created in M0.5.
+- `GET /api/training-programs`: authenticated active program catalog.
+- `GET /api/referrals`: candidates see their own referrals; evaluators see referrals they created; admins see all.
+- `GET /api/referrals/eligible`: evaluator-owned (admin: all) released `NEEDS_TRAINING` evaluations for active candidates.
+- `POST /api/referrals` with `{ evaluationId, programId }`: evaluator/admin only; checks evaluation ownership/release/recommendation, active program and compatible track; serializes duplicate prevention on the candidate. Creates an in-app notification and audit event atomically. No client-controlled referral status or candidate ID.
+- `GET /api/admin/stats`: users, activeUsers, jobs, pendingVerifications, activePlacements, replacements.
+- `GET /api/admin/users`, `/jobs`, `/skills`, `/verifications`: small showcase lists using explicit safe DTOs. Verification overview excludes evidence and private notes.
+- `PATCH /api/admin/users/{id}/status` with `{ status }`: ACTIVE/SUSPENDED/FLAGGED/BLOCKED, audited and notified. Admin accounts are protected. Existing tokens lose access while an account is inactive; restoring ACTIVE restores access for still-valid tokens. Role changes are not exposed.

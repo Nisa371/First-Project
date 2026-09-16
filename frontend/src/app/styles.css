@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", "Noto Sans Bengali", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+@layer base {
+  body { @apply m-0 bg-stone-50 font-sans text-slate-900 antialiased; }
+  :focus-visible { @apply outline-2 outline-offset-4 outline-indigo-600; }
+  button:not(:disabled), a { -webkit-tap-highlight-color: transparent; }
+}
+
+@layer components {
+  .eyebrow { @apply text-xs font-bold tracking-widest text-slate-500; }
+  .button-primary { @apply inline-flex min-h-11 items-center justify-center gap-4 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-indigo-700 disabled:cursor-wait disabled:bg-slate-200 disabled:text-slate-600; }
+}
+
+@layer components {
+  .surface { @apply rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8; }
+  .field-label { @apply mb-2 block text-sm font-semibold text-slate-700; }
+  .form-input { @apply block min-h-12 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 transition-colors focus:border-indigo-500; }
+  .form-input[aria-invalid="true"] { @apply border-rose-500; }
+  .choice-card { @apply flex min-h-12 cursor-pointer items-center gap-2 rounded-xl border border-slate-200 p-3 text-sm font-semibold transition-colors hover:border-indigo-300; }
+  .choice-selected { @apply border-indigo-600 bg-indigo-50 text-indigo-900; }
+  .account-row { @apply grid gap-2 py-4 text-sm text-slate-500 sm:grid-cols-[140px_1fr]; }
+}
+
+@layer components {
+  .button-secondary { @apply inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50; }
+  .badge { @apply inline-flex max-w-full items-center rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold capitalize text-slate-600 break-words; }
+  .workspace-link { @apply min-h-11 rounded-xl border border-slate-200 px-4 py-3 text-sm font-semibold transition-colors; }
+}
+
+@layer base {
+  html { scroll-behavior: smooth; }
+  main, section, article { min-width: 0; }
+  h1, h2, h3, p { overflow-wrap: anywhere; }
+  select { max-width: 100%; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+}

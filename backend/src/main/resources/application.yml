@@ -1,13 +1,19 @@
 spring:
   application:
     name: verified-career-marketplace-backend
+  profiles:
+    default: dev
   autoconfigure:
-    # No generated in-memory user/password before authentication is implemented in M4.
+    # Authentication is implemented in M3; do not generate a bootstrap user.
     exclude:
       - org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration
-  datasource:
-    # M1.2 development/test bootstrap only; M1.4/M2 formalize profiles and MySQL.
-    url: jdbc:h2:mem:verified-career-marketplace
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
   jpa:
     hibernate:
       ddl-auto: none
@@ -18,3 +24,15 @@ spring:
   h2:
     console:
       enabled: false
+
+server:
+  port: ${SERVER_PORT:8080}
+
+app:
+  cv:
+    directory: ${CV_STORAGE_DIRECTORY:uploads/cv}
+  jwt:
+    secret: ${JWT_SECRET:}
+    ttl-seconds: ${JWT_TTL_SECONDS:3600}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}

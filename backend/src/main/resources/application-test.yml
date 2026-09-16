@@ -1,0 +1,16 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+  datasource:
+    url: jdbc:h2:mem:verified-career-marketplace-test;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password: ""
+
+app:
+  assessments:
+    seed-demo: false
+  skills:
+    seed-catalog: false
+  cors:
+    allowed-origins: http://localhost:5173
