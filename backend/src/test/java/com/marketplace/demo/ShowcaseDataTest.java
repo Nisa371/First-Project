@@ -10,7 +10,8 @@ import org.springframework.boot.DefaultApplicationArguments;
 import org.springframework.test.context.*;
 import static org.assertj.core.api.Assertions.*;
 @org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
-@SpringBootTest(properties={"app.demo.enabled=true","spring.datasource.url=jdbc:h2:mem:showcase-fixture;DB_CLOSE_DELAY=-1"}) @ActiveProfiles("dev")
+@SpringBootTest(properties={"app.demo.enabled=true","spring.datasource.url=jdbc:h2:mem:showcase-fixture;DB_CLOSE_DELAY=-1",
+ "spring.datasource.driver-class-name=org.h2.Driver","spring.datasource.username=sa","spring.datasource.password="}) @ActiveProfiles("dev")
 class ShowcaseDataTest {
  @DynamicPropertySource static void password(DynamicPropertyRegistry r){r.add("app.demo.password",()->java.util.UUID.randomUUID().toString());}
  @Autowired ShowcaseData data; @Autowired UserRepository users; @Autowired CandidateProfileRepository candidates;

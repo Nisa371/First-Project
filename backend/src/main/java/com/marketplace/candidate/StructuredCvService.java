@@ -80,7 +80,7 @@ public class StructuredCvService {
         if ((start != null && end != null && end.isBefore(start)) || (current && end != null))
             throw new ApiException(400, "INVALID_CV_DATES", "End date must follow start date. Current entries must have no end date.");
     }
-    private void url(String value) {
+    static void url(String value) {
         if (value == null || value.isBlank()) return;
         try {
             var uri = URI.create(value);

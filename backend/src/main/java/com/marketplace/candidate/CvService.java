@@ -28,29 +28,33 @@ public class CvService {
         this.applications=applications; this.profiles=profiles; this.candidates=candidates; this.current=current;
         this.root=Path.of(directory).toAbsolutePath().normalize();
     }
-    @Transactional
+    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager entityManager;
+    @Transactional(rollbackFor=IOException.class)
     @PreAuthorize("hasRole('CANDIDATE')")
     public CandidateDtos.ProfileView upload(MultipartFile file) throws IOException {
         var c=profiles.own();
+        // Refresh while locking: own() may have loaded a snapshot before another upload committed.
+        entityManager.refresh(c, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         if(c.getCandidateType()!=CandidateType.TECH) throw new ApiException(403,"TECH_ONLY","CV upload is available for TECH candidates.");
         String name=file.getOriginalFilename();
         if(file.isEmpty() || file.getSize()>5*1024*1024 || name==null || name.length()>180
-            || name.contains("/") || name.contains("\\") || name.chars().anyMatch(ch -> ch<32)
+            || name.contains("/") || name.contains("\\") || name.chars().anyMatch(ch -> ch<32 || ch==127)
             || !name.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf") || !"application/pdf".equals(file.getContentType()))
             throw new ApiException(400,"INVALID_CV","Choose a PDF file up to 5 MB with a simple filename.");
         byte[] bytes=file.getBytes();
         if(bytes.length<8 || !new String(bytes,0,5,StandardCharsets.US_ASCII).equals("%PDF-"))
             throw new ApiException(400,"INVALID_CV","The file must contain a PDF document.");
         String previous=c.getCvStoredName(); String stored=UUID.randomUUID()+".pdf";
-        Files.createDirectories(root); Files.write(root.resolve(stored),bytes,StandardOpenOption.CREATE_NEW);
+        Files.createDirectories(root);
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override public void afterCompletion(int status) {
                 String remove=status==STATUS_COMMITTED ? previous : stored;
-                if(remove!=null) { try { Files.deleteIfExists(path(remove)); } catch(IOException ex) {
+                if(remove!=null) { try { Files.deleteIfExists(path(remove)); } catch(IOException | ApiException ex) {
                     org.slf4j.LoggerFactory.getLogger(CvService.class).warn("Could not remove superseded CV file");
                 } }
             }
         });
+        Files.write(path(stored),bytes,StandardOpenOption.CREATE_NEW);
         c.setCvStoredName(stored); c.setCvOriginalName(name); c.setCvContentType("application/pdf");
         candidates.saveAndFlush(c); return profiles.view(c);
     }
@@ -62,12 +66,12 @@ public class CvService {
         if(user.getRole()==Role.CANDIDATE) current.requireOwner(c.getUser().getId());
         else if(!applications.existsByCandidateIdAndJobEmployerUserId(c.getId(),user.getId()) || c.getUser().getAccountStatus()!=AccountStatus.ACTIVE || c.getUser().getRole()!=Role.CANDIDATE)
             throw CandidateService.missing();
-        if(c.getCvStoredName()==null || !Files.isRegularFile(path(c.getCvStoredName()))) throw CandidateService.missing();
+        if(c.getCvStoredName()==null || !Files.isRegularFile(path(c.getCvStoredName()),LinkOption.NOFOLLOW_LINKS)) throw CandidateService.missing();
         return Files.readAllBytes(path(c.getCvStoredName()));
     }
     private Path path(String name) {
         Path target=root.resolve(name).normalize();
-        if(!target.getParent().equals(root)) throw CandidateService.missing();
+        if(!root.equals(target.getParent())) throw CandidateService.missing();
         return target;
     }
 }

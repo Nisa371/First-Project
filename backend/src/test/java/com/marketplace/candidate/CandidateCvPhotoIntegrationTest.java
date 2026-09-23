@@ -209,6 +209,55 @@ class CandidateCvPhotoIntegrationTest {
         a.setAccountStatus(AccountStatus.SUSPENDED); users.saveAndFlush(a);
         mvc.perform(get(publicPath).header("Authorization", auth(employer))).andExpect(status().isNotFound());
     }
+    @Test void profilePortfolioRejectsMalformedAndCredentialBearingUrls() throws Exception {
+        var u=candidate();
+        for(String url:List.of("https://user:secret@example.com","http://?query","https://#fragment")) {
+            mvc.perform(put("/api/candidates/me").header("Authorization",auth(u)).contentType("application/json")
+                .content(mapper.writeValueAsString(Map.of("fullName","Candidate","availability","AVAILABLE","portfolioUrl",url))))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.error").value("INVALID_CV_URL"));
+        }
+        assertThat(profile(u).getPortfolioUrl()).isEqualTo("https://example.com/portfolio");
+    }
+    @Test void pdfDownloadRejectsSymlinksAndTraversalAndReplacementCleansOldFile() throws Exception {
+        var u=candidate();
+        byte[] pdf="%PDF-1.4 resume".getBytes();
+        mvc.perform(multipart("/api/candidates/me/cv").file(new MockMultipartFile("file","resume.pdf","application/pdf",pdf))
+            .header("Authorization",auth(u))).andExpect(status().isOk());
+        String first=profile(u).getCvStoredName();
+        mvc.perform(multipart("/api/candidates/me/cv").file(new MockMultipartFile("file","next.pdf","application/pdf",pdf))
+            .header("Authorization",auth(u))).andExpect(status().isOk());
+        assertThat(Files.exists(storage.resolve("pdfs").resolve(first))).isFalse();
+        var c=profile(u); var stored=storage.resolve("pdfs").resolve(c.getCvStoredName());
+        Path outside=storage.resolve("private.txt"); Files.writeString(outside,"PRIVATE_DATA");
+        Files.delete(stored); Files.createSymbolicLink(stored,outside);
+        mvc.perform(get("/api/candidates/me/cv").header("Authorization",auth(u))).andExpect(status().isNotFound());
+        c.setCvStoredName("../private.txt"); candidates.saveAndFlush(c);
+        mvc.perform(get("/api/candidates/me/cv").header("Authorization",auth(u))).andExpect(status().isNotFound());
+    }
+    @Test void concurrentPdfReplacementsLeaveExactlyOneCurrentFile() throws Exception {
+        var u=candidate(); String prefix=UUID.randomUUID().toString();
+        try(var pool=java.util.concurrent.Executors.newFixedThreadPool(2)) {
+            var gate=new java.util.concurrent.CountDownLatch(1);
+            var futures=new ArrayList<java.util.concurrent.Future<String>>();
+            for(int i=0;i<2;i++) {
+                final int index=i;
+                futures.add(pool.submit(() -> {
+                    gate.await();
+                    mvc.perform(multipart("/api/candidates/me/cv").file(new MockMultipartFile("file","resume.pdf","application/pdf",
+                        ("%PDF-1.4 "+prefix+index).getBytes())).header("Authorization",auth(u))).andExpect(status().isOk());
+                    return "done";
+                }));
+            }
+            gate.countDown(); for(var f:futures) f.get(15,java.util.concurrent.TimeUnit.SECONDS);
+        }
+        try(var files=Files.list(storage.resolve("pdfs"))) {
+            var matches=files.filter(p -> {
+                try { return Files.isRegularFile(p,LinkOption.NOFOLLOW_LINKS) && Files.readString(p).contains(prefix); }
+                catch(java.io.IOException e) { throw new java.io.UncheckedIOException(e); }
+            }).toList();
+            assertThat(matches).containsExactly(storage.resolve("pdfs").resolve(profile(u).getCvStoredName()));
+        }
+    }
     @Test void tradeCandidatesCanMaintainPhotosAndBuiltCvs() throws Exception {
         var u = candidate(); var c = profile(u); c.setCandidateType(CandidateType.TRADE); candidates.saveAndFlush(c);
         upload(u, image("png"), "trade.png", "image/png").andExpect(status().isOk());

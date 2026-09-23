@@ -34,7 +34,7 @@ public class JobService {
         return view(jobs.saveAndFlush(j));
     }
     public JobView update(Long id, JobRequest r) {
-        var j=owned(id); requireOpen(j); apply(j,r); return view(j);
+        var j=owned(id); requireOpen(j); requireCompatible(j,r); apply(j,r); return view(j);
     }
     public JobView close(Long id) { return closeJob(owned(id)); }
     private JobView closeJob(Job j) { var id=j.getId(); j.setStatus(JobStatus.CLOSED); payments.findByJobId(id).filter(p -> p.getStatus()==com.marketplace.payment.PaymentStatus.PENDING).ifPresent(p -> {
@@ -52,9 +52,12 @@ public class JobService {
     @PreAuthorize("hasRole('ADMIN')")
     public JobView adminUpdate(Long id, JobRequest r) {
         current.requireActive(); var j=jobs.findByIdForUpdate(id).orElseThrow(CandidateService::missing); requireOpen(j);
-        if(applications.countByJobId(id)>0 && (j.getCandidateType()!=r.candidateType() || !java.util.Objects.equals(j.getRequiredSkill()==null?null:j.getRequiredSkill().getId(),r.requiredSkillId())))
-            throw new ApiException(409,"JOB_HAS_APPLICATIONS","Track and required skill cannot change after applications arrive.");
+        requireCompatible(j,r);
         apply(j,r); return view(j);
+    }
+    private void requireCompatible(Job j, JobRequest r) {
+        if(applications.countByJobId(j.getId())>0 && (j.getCandidateType()!=r.candidateType() || !java.util.Objects.equals(j.getRequiredSkill()==null?null:j.getRequiredSkill().getId(),r.requiredSkillId())))
+            throw new ApiException(409,"JOB_HAS_APPLICATIONS","Track and required skill cannot change after applications arrive.");
     }
     @PreAuthorize("hasRole('ADMIN')")
     public JobView adminClose(Long id) { current.requireActive(); return closeJob(jobs.findByIdForUpdate(id).orElseThrow(CandidateService::missing)); }

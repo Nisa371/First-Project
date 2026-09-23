@@ -97,6 +97,23 @@ class JobApplicationIntegrationTest {
         mvc.perform(get("/api/candidates/"+cid(c)).header("Authorization",auth(e))).andExpect(status().isNotFound());
         assertThat(shortlists.findById(s.getId())).isPresent();assertThat(applications.existsByJobIdAndCandidateId(j,cid(c))).isFalse();
     }
+    @Test void employerCannotInvalidateExistingApplicantsByChangingTrackOrSkill() throws Exception {
+        var e=employer(); var c=candidate(); Long j=job(e);
+        Long a=id(apply(c,j).andExpect(status().isCreated()));
+        reviewStatus(e,j,a,"SHORTLISTED").andExpect(status().isOk());
+        mvc.perform(put("/api/jobs/"+j).header("Authorization",auth(e)).contentType("application/json")
+            .content(body(6).replace("TECH","TRADE"))).andExpect(status().isConflict())
+            .andExpect(jsonPath("$.error").value("JOB_HAS_APPLICATIONS"));
+        var changed=mapper.readTree(body(6));
+        ((tools.jackson.databind.node.ObjectNode)changed).put("requiredSkillId",999999L);
+        mvc.perform(put("/api/jobs/"+j).header("Authorization",auth(e)).contentType("application/json")
+            .content(mapper.writeValueAsString(changed))).andExpect(status().isConflict());
+        mvc.perform(put("/api/jobs/"+j).header("Authorization",auth(e)).contentType("application/json")
+            .content(body(12))).andExpect(status().isOk()).andExpect(jsonPath("$.status").value("ACTIVE"))
+            .andExpect(jsonPath("$.expectedExperienceMonths").value(12));
+        assertThat(shortlists.existsByJobIdAndCandidateId(j,cid(c))).isTrue();
+        assertThat(jobs.findById(j).orElseThrow().getCandidateType()).isEqualTo(CandidateType.TECH);
+    }
     @Test void concurrentApplyAndDatabaseUniqueConstraintPreventDuplicates() throws Exception {
         var e=employer();var c=candidate();Long j=job(e);
         try(var pool=Executors.newFixedThreadPool(2)) {

@@ -47,6 +47,7 @@ public class CandidateService {
         return applyProfile(candidates.findByIdForUpdate(id).orElseThrow(CandidateService::missing), r);
     }
     private ProfileView applyProfile(CandidateProfile c, ProfileRequest r) {
+        StructuredCvService.url(r.portfolioUrl());
         c.setFullName(r.fullName().trim()); c.setPhone(r.phone()); c.setLocation(r.location()); c.setBio(r.bio());
         c.setExperienceSummary(r.experienceSummary()); if(r.totalExperienceMonths()!=null) c.setTotalExperienceMonths(r.totalExperienceMonths()); c.setAvailability(r.availability());
         if (c.getCandidateType() == CandidateType.TECH) {
