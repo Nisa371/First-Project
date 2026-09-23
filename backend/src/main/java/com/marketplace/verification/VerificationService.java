@@ -17,8 +17,9 @@ import static com.marketplace.verification.VerificationDtos.*;
 public class VerificationService {
     private final CurrentAccount current;
     private final CandidateService profiles;
-    private final CandidateProfileRepository candidates;
     private final VerificationRecordRepository records;
+    private final VerificationChecklist checklist;
+    private final com.marketplace.user.UserRepository users;
 
     @PreAuthorize("hasRole('CANDIDATE')")
     public List<StatusView> history() {
@@ -26,36 +27,35 @@ public class VerificationService {
     }
     @PreAuthorize("hasRole('CANDIDATE')")
     public StatusView submit(Submission request) {
-        var c = candidates.findByIdForUpdate(profiles.own().getId()).orElseThrow(CandidateService::missing);
-        var latest = records.findFirstByCandidateIdOrderBySubmittedAtDescIdDesc(c.getId());
-        if (latest.isPresent() && latest.get().getStatus() != VerificationStatus.FAILED && latest.get().getStatus() != VerificationStatus.FLAGGED)
-            throw new ApiException(409, "VERIFICATION_EXISTS", "Your verification is pending or already verified.");
-        var record = new VerificationRecord(); record.setCandidate(c);
-        record.setIdentityReference(request.identityReference().trim());
-        return status(records.saveAndFlush(record));
+        throw new ApiException(410,"DOCUMENT_UPLOAD_REQUIRED","Upload your National ID using the verification checklist.");
     }
-    @PreAuthorize("hasRole('EVALUATOR')")
+    @PreAuthorize("hasAnyRole('EVALUATOR','ADMIN')")
     public List<ReviewView> pending() {
         current.requireActive();
         return java.util.stream.Stream.concat(records.findByStatusOrderBySubmittedAtAsc(VerificationStatus.PENDING).stream(),
             records.findByStatusOrderBySubmittedAtAsc(VerificationStatus.IN_REVIEW).stream())
             .sorted(java.util.Comparator.comparing(VerificationRecord::getSubmittedAt).thenComparing(VerificationRecord::getId))
-            .map(this::reviewView).toList();
+            .filter(v -> v.getCandidate()!=null && v.getStoredName()==null).map(this::reviewView).toList();
     }
-    @PreAuthorize("hasRole('EVALUATOR')")
+    @PreAuthorize("hasAnyRole('EVALUATOR','ADMIN')")
     public ReviewView detail(Long id) {
-        current.requireActive(); return reviewView(records.findById(id).orElseThrow(CandidateService::missing));
+        current.requireActive(); var v=records.findById(id).orElseThrow(CandidateService::missing); legacyOnly(v); return reviewView(v);
     }
-    @PreAuthorize("hasRole('EVALUATOR')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ReviewView review(Long id, Decision decision) {
         var reviewer = current.requireActive();
         if (!List.of(VerificationStatus.VERIFIED, VerificationStatus.FAILED, VerificationStatus.FLAGGED).contains(decision.status()))
             throw new ApiException(400, "INVALID_DECISION", "Choose VERIFIED, FAILED or FLAGGED.");
+        users.findByIdForUpdate(records.ownerId(id).orElseThrow(CandidateService::missing)).orElseThrow(CandidateService::missing);
         var v = records.findByIdForUpdate(id).orElseThrow(CandidateService::missing);
-        if (v.getStatus() != VerificationStatus.PENDING && v.getStatus() != VerificationStatus.IN_REVIEW)
+        legacyOnly(v);
+        if (!checklist.latest(v) || (v.getStatus() != VerificationStatus.PENDING && v.getStatus() != VerificationStatus.IN_REVIEW))
             throw new ApiException(409, "FINAL_REVIEW", "This verification already has a final decision.");
         v.setReviewerUser(reviewer); v.setStatus(decision.status()); v.setReviewerNotes(decision.notes().trim()); v.setReviewedAt(Instant.now());
         return reviewView(v);
+    }
+    private void legacyOnly(VerificationRecord v) {
+        if(v.getCandidate()==null || v.getStoredName()!=null) throw new ApiException(403,"ADMIN_REVIEW_REQUIRED","Document submissions require administrator review.");
     }
     private StatusView status(VerificationRecord v) { return new StatusView(v.getId(),v.getStatus(),v.getSubmittedAt(),v.getReviewedAt()); }
     private ReviewView reviewView(VerificationRecord v) {

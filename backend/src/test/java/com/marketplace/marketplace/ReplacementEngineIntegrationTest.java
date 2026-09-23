@@ -91,6 +91,10 @@ class ReplacementEngineIntegrationTest {
         String body="{\"jobId\":"+j.getId()+",\"candidateId\":"+c.getId()+"}";
         mvc.perform(post("/api/placements").header("Authorization",auth(e.getUser())).contentType("application/json").content(body)).andExpect(status().isConflict());
         var l=new ShortlistEntry();l.setJob(j);l.setCandidate(c);shortlists.saveAndFlush(l);
+        mvc.perform(post("/api/placements").header("Authorization",auth(e.getUser())).contentType("application/json").content(body)).andExpect(status().isConflict());
+        mvc.perform(post("/api/jobs/"+j.getId()+"/apply").header("Authorization",auth(c.getUser()))).andExpect(status().isCreated());
+        // A legacy shortlist alone cannot authorize a new placement.
+        mvc.perform(post("/api/jobs/"+j.getId()+"/shortlist/"+c.getId()).header("Authorization",auth(e.getUser()))).andExpect(status().isCreated());
         mvc.perform(post("/api/placements").header("Authorization",auth(employer().getUser())).contentType("application/json").content(body)).andExpect(status().isNotFound());
         var p=postOk("/api/placements",e.getUser(),body);assertThat(p.get("status").asText()).isEqualTo("ACTIVE");assertThat(p.get("guaranteeEligible").asBoolean()).isTrue();assertThat(Instant.parse(p.get("guaranteeExpiresAt").asText())).isBetween(Instant.now().plus(Duration.ofDays(29)),Instant.now().plus(Duration.ofDays(31)));
         mvc.perform(post("/api/placements").header("Authorization",auth(e.getUser())).contentType("application/json").content(body)).andExpect(status().isConflict());

@@ -45,6 +45,9 @@ public class CandidateProfile extends TimestampedEntity {
     @Column(nullable = true, length = 2000)
     private String experienceSummary;
 
+    @org.hibernate.annotations.ColumnDefault("0")
+    @Column(nullable=false) private int totalExperienceMonths;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Availability availability = Availability.UNAVAILABLE;
@@ -63,6 +66,9 @@ public class CandidateProfile extends TimestampedEntity {
 
     @Column(nullable = true, length = 100)
     private String cvContentType;
+
+    @Column(length = 80)
+    private String photoStoredName;
 
     @Version
     @Setter(lombok.AccessLevel.NONE)

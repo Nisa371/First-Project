@@ -23,6 +23,7 @@ public class PlacementService {
     private final CandidateSkillRepository skills;
     private final JobRepository jobs;
     private final ShortlistEntryRepository shortlists;
+    private final JobApplicationRepository applications;
     private final WaitingListEntryRepository queue;
     private final ReplacementRequestRepository replacements;
     private final QueueEligibilityService eligibility;
@@ -41,6 +42,7 @@ public class PlacementService {
         var j=jobs.findOwnedForUpdate(jobId,u.getId()).orElseThrow(CandidateService::missing);
         var c=candidates.findByIdForUpdate(candidateId).orElseThrow(CandidateService::missing);
         if(j.getStatus()!=JobStatus.ACTIVE || j.getRequiredSkill()==null || !j.getRequiredSkill().isActive()
+            || !applications.existsByJobIdAndCandidateIdAndStatus(jobId,candidateId,ApplicationStatus.SHORTLISTED)
             || !shortlists.existsByJobIdAndCandidateId(jobId,candidateId) || c.getCandidateType()!=j.getCandidateType()
             || !skills.existsByCandidateIdAndSkillId(candidateId,j.getRequiredSkill().getId())
             || c.getUser().getRole()!=Role.CANDIDATE || c.getUser().getAccountStatus()!=AccountStatus.ACTIVE

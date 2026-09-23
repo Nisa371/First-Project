@@ -23,8 +23,16 @@ public class EmployerProfile extends TimestampedEntity {
     @Column(nullable = false, length = 200)
     private String companyName;
 
+    // Retained solely for lossless migration of existing profiles.
     @Column(nullable = true, length = 120)
     private String industry;
+
+    @jakarta.persistence.ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "company_type_id")
+    private com.marketplace.companytype.CompanyType companyType;
+
+    @Column(length = 120)
+    private String customCompanyType;
 
     @Column(nullable = true, length = 32)
     private String contactPhone;

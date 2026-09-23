@@ -8,5 +8,5 @@ import org.springframework.web.bind.annotation.*;
 public class EmployerController {
     private final EmployerService service;
     @GetMapping public EmployerService.Profile own() { return service.profile(); }
-    @PutMapping public EmployerService.Profile update(@Valid @RequestBody EmployerService.Profile r) { return service.update(r); }
+    @PutMapping public EmployerService.Profile update(@Valid @RequestBody EmployerService.Update r) { return service.update(r); }
 }

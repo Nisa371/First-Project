@@ -14,6 +14,8 @@ export interface RegisterRequest {
   email: string
   password: string
   fullName?: string
+  companyTypeId?: number
+  customCompanyType?: string
   companyName?: string
 }
 export const dashboardPath = (role: Role) => `/${role.toLowerCase()}/dashboard`

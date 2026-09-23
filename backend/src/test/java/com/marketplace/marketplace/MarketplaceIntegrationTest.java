@@ -31,6 +31,7 @@ class MarketplaceIntegrationTest {
     static { try { cvRoot=Files.createTempDirectory("marketplace-cv-test-"); } catch(Exception e) { throw new RuntimeException(e); } }
     @DynamicPropertySource static void props(DynamicPropertyRegistry r) { r.add("app.cv.directory",()->cvRoot.toString()); }
     @AfterAll static void cleanup() throws Exception { try(var files=Files.list(cvRoot)) { for(var p:files.toList()) Files.delete(p); } Files.delete(cvRoot); }
+    @Autowired com.marketplace.companytype.CompanyTypeRepository companyTypes;
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
     @Autowired CandidateProfileRepository candidates;
@@ -45,6 +46,7 @@ class MarketplaceIntegrationTest {
         var data=new HashMap<String,Object>(Map.of("email",UUID.randomUUID()+"@example.com","password","SafePass123!",
             "accountType",role,"fullName","Test Candidate","companyName","Test Company"));
         if(track!=null) data.put("candidateType",track);
+        if(role.equals("EMPLOYER")) data.put("companyTypeId",companyTypes.findByNormalizedName("pharmaceuticals").orElseThrow().getId());
         var result=mvc.perform(post("/api/auth/register").contentType("application/json").content(mapper.writeValueAsString(data)))
             .andExpect(status().isCreated()).andReturn();
         var tree=mapper.readTree(result.getResponse().getContentAsString());
@@ -63,8 +65,12 @@ class MarketplaceIntegrationTest {
     String jobBody() { return "{\"title\":\"Java Developer\",\"description\":\"Build reliable applications\",\"location\":\"Dhaka\",\"candidateType\":\"TECH\",\"requiredSkillId\":"+skill()+"}"; }
     Long job(Account e) throws Exception {
         var result=mvc.perform(post("/api/jobs").header("Authorization",e.auth()).contentType("application/json").content(jobBody()))
-            .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("ACTIVE")).andReturn();
-        return mapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();
+            .andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("DRAFT")).andReturn();
+        Long jobId=mapper.readTree(result.getResponse().getContentAsString()).get("id").asLong();
+        var payment=mvc.perform(post("/api/jobs/"+jobId+"/payment").header("Authorization",e.auth())).andExpect(status().isOk()).andReturn();
+        Long paymentId=mapper.readTree(payment.getResponse().getContentAsString()).get("id").asLong();
+        mvc.perform(post("/api/payments/"+paymentId+"/demo-success").header("Authorization",e.auth())).andExpect(status().isOk());
+        return jobId;
     }
     @Test void profileSkillsValidationAndAuthority() throws Exception {
         var c=register("CANDIDATE","TECH"); var other=register("CANDIDATE","TECH"); var e=register("EMPLOYER",null);
@@ -100,6 +106,8 @@ class MarketplaceIntegrationTest {
         assertThat(original).matches("[a-f0-9-]+\\.pdf"); assertThat(Files.exists(cvRoot.resolve(original))).isTrue();
         mvc.perform(get("/api/candidates/me/cv").header("Authorization",c.auth())).andExpect(status().isOk()).andExpect(content().bytes(pdf)).andExpect(header().string("Cache-Control","no-store"));
         mvc.perform(get("/api/candidates/"+c.candidateId+"/cv").header("Authorization",other.auth())).andExpect(status().isForbidden());
+        mvc.perform(get("/api/candidates/"+c.candidateId+"/cv").header("Authorization",e.auth())).andExpect(status().isNotFound());
+        mvc.perform(post("/api/jobs/"+job(e)+"/apply").header("Authorization",c.auth())).andExpect(status().isCreated());
         mvc.perform(get("/api/candidates/"+c.candidateId+"/cv").header("Authorization",e.auth())).andExpect(status().isOk()).andExpect(header().string("Content-Disposition","attachment; filename=resume.pdf"));
         mvc.perform(get("/api/candidates/"+c.candidateId+"/cv")).andExpect(status().isUnauthorized());
         mvc.perform(multipart("/api/candidates/me/cv").file(new MockMultipartFile("file","updated.pdf","application/pdf",pdf)).header("Authorization",c.auth())).andExpect(status().isOk());
@@ -107,7 +115,7 @@ class MarketplaceIntegrationTest {
     }
     @Test void employerJobsOwnershipAndShortlistLifecycle() throws Exception {
         var e=register("EMPLOYER",null); var outsider=register("EMPLOYER",null); var c=register("CANDIDATE","TECH");
-        mvc.perform(put("/api/employers/me").header("Authorization",e.auth()).contentType("application/json").content("{\"companyName\":\"Dhaka Studio\",\"industry\":\"Software\"}"))
+        mvc.perform(put("/api/employers/me").header("Authorization",e.auth()).contentType("application/json").content("{\"companyName\":\"Dhaka Studio\",\"companyTypeId\":"+companyTypes.findByNormalizedName("software / technology").orElseThrow().getId()+"}"))
             .andExpect(status().isOk()).andExpect(jsonPath("$.companyName").value("Dhaka Studio"));
         mvc.perform(get("/api/employers/me").header("Authorization",outsider.auth())).andExpect(jsonPath("$.companyName").value("Test Company"));
         Long id=job(e);
@@ -119,6 +127,7 @@ class MarketplaceIntegrationTest {
         String path="/api/jobs/"+id+"/shortlist/"+c.candidateId;
         mvc.perform(post(path).header("Authorization",outsider.auth())).andExpect(status().isNotFound());
         mvc.perform(post(path).header("Authorization",e.auth())).andExpect(status().isConflict());
+        mvc.perform(post("/api/jobs/"+id+"/apply").header("Authorization",c.auth())).andExpect(status().isCreated());
         available(c);
         mvc.perform(post(path).header("Authorization",e.auth())).andExpect(status().isConflict());
         addSkill(c);
@@ -134,7 +143,7 @@ class MarketplaceIntegrationTest {
         mvc.perform(post(path).header("Authorization",e.auth())).andExpect(status().isConflict());
         mvc.perform(get("/api/jobs/"+id).header("Authorization",e.auth())).andExpect(jsonPath("$.shortlistCount").value(0));
     }
-    @Test void searchFiltersAndProjectionNeverLeakPrivateData() throws Exception {
+    @Test void applicantProjectionNeverLeaksPrivateDataAndGlobalSearchIsDisabled() throws Exception {
         var c=register("CANDIDATE","TECH"); var e=register("EMPLOYER",null); available(c); addSkill(c);
         var candidate=candidates.findById(c.candidateId).orElseThrow(); String location="Private Test "+UUID.randomUUID(); candidate.setLocation(location); candidates.save(candidate);
         var v=new VerificationRecord(); v.setCandidate(candidate); v.setIdentityReference("PRIVATE_NID"); v.setReviewerNotes("PRIVATE_VERIFICATION_NOTE"); v.setStatus(VerificationStatus.VERIFIED); verifications.save(v);
@@ -143,15 +152,15 @@ class MarketplaceIntegrationTest {
             var attempt=new AssessmentAttempt(); attempt.setAssessment(a); attempt.setCandidate(candidate); attempts.save(attempt);
             var evaluation=new Evaluation(); evaluation.setAttempt(attempt); evaluation.setScore(BigDecimal.valueOf(released?88:11)); evaluation.setRecommendation(Recommendation.HIRE_READY); evaluation.setInternalNotes("PRIVATE_EVALUATOR_NOTE"); evaluation.setReleased(released); evaluations.save(evaluation);
         }
-        var response=mvc.perform(get("/api/candidates").param("location",location).param("candidateType","TECH").param("availability","AVAILABLE").param("skillId",skill().toString()).header("Authorization",e.auth()))
-            .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1)).andExpect(jsonPath("$.content[0].verificationStatus").value("VERIFIED"))
-            .andExpect(jsonPath("$.content[0].releasedResults.length()").value(1)).andExpect(jsonPath("$.content[0].releasedResults[0].score").value(88)).andReturn().getResponse().getContentAsString();
+        Long job=job(e);
+        mvc.perform(get("/api/candidates").header("Authorization",e.auth())).andExpect(status().isForbidden());
+        mvc.perform(get("/api/candidates/"+c.candidateId).header("Authorization",e.auth())).andExpect(status().isNotFound());
+        mvc.perform(post("/api/jobs/"+job+"/apply").header("Authorization",c.auth())).andExpect(status().isCreated());
+        var response=mvc.perform(get("/api/jobs/"+job+"/applications").header("Authorization",e.auth()))
+            .andExpect(status().isOk()).andExpect(jsonPath("$[0].candidate.verificationStatus").value("VERIFIED"))
+            .andExpect(jsonPath("$[0].candidate.releasedResults.length()").value(1)).andExpect(jsonPath("$[0].candidate.releasedResults[0].score").value(88)).andReturn().getResponse().getContentAsString();
         assertThat(response).doesNotContain("PRIVATE_","password","phone","cvStoredName","identityReference","internalNotes","email");
-        mvc.perform(get("/api/candidates").param("location",location).param("candidateType","TRADE").header("Authorization",e.auth())).andExpect(jsonPath("$.totalElements").value(0));
-        mvc.perform(get("/api/candidates").param("location","%").header("Authorization",e.auth())).andExpect(jsonPath("$.totalElements").value(0));
-        mvc.perform(get("/api/candidates").param("page","-1").header("Authorization",e.auth())).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/candidates").param("location",location).header("Authorization",e.auth())).andExpect(status().isForbidden());
         mvc.perform(get("/api/candidates").header("Authorization",c.auth())).andExpect(status().isForbidden());
-        var user=users.findById(c.userId).orElseThrow(); user.setAccountStatus(AccountStatus.SUSPENDED); users.save(user);
-        mvc.perform(get("/api/candidates").param("location",location).header("Authorization",e.auth())).andExpect(jsonPath("$.totalElements").value(0));
     }
 }

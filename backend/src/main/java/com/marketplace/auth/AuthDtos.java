@@ -14,7 +14,9 @@ public final class AuthDtos {
             @NotBlank @Email @Size(max = 254) String email,
             @NotBlank @Size(min = 8, max = 72) String password,
             @Size(max = 160) String fullName,
-            @Size(max = 200) String companyName) {}
+            @Size(max = 200) String companyName,
+            Long companyTypeId,
+            @Size(max = 120) String customCompanyType) {}
     public record LoginRequest(
             @NotBlank @Email @Size(max = 254) String email,
             @NotBlank @Size(max = 72) String password) {}

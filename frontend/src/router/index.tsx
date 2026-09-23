@@ -1,3 +1,9 @@
+import { ApplicationAssessmentPage, EmployerAssessmentPage } from '../features/assessment/ApplicationAssessmentPage'
+import { CvBuilderPage } from '../features/cv/CvBuilderPage'
+import { CvPreviewPage } from '../features/cv/CvPreviewPage'
+import { DemoPaymentPage } from '../features/payment/DemoPaymentPage'
+import { MyApplicationsPage } from '../features/marketplace/ApplicationsPage'
+import { CandidateJobsPage, CandidateJobPage } from '../features/marketplace/ExploreJobsPage'
 import { PlacementsPage, ReplacementsPage, QueuePage, AdminQueuePage, NotificationsPage } from '../features/placement/ManagedPages'
 import { TradeOnboardingPage } from '../features/trade/TradeOnboardingPage'
 import { VerificationPage, VerificationQueuePage, VerificationReviewPage } from '../features/trade/VerificationPages'
@@ -8,7 +14,7 @@ import { CandidateDashboard, EmployerDashboard } from '../features/marketplace/D
 import { CandidateProfilePage } from '../features/marketplace/CandidateProfilePage'
 import { EmployerProfilePage } from '../features/marketplace/EmployerProfilePage'
 import { JobsPage } from '../features/marketplace/JobsPage'
-import { CandidateSearchPage } from '../features/marketplace/CandidateSearchPage'
+import { CandidateSearchPage, ApplicantDetailPage } from '../features/marketplace/CandidateSearchPage'
 import { AuthPage } from '../features/auth/AuthPage'
 import { ProtectedRoute } from '../features/auth/ProtectedRoute'
 import { AdminPage, TrainingPage } from '../components/LazyPages'
@@ -27,10 +33,16 @@ export const router = createBrowserRouter([
       element: <ProtectedRoute role={role} />,
       children: [{ path: `/${role.toLowerCase()}/dashboard`, element: role === 'CANDIDATE' ? <CandidateDashboard /> : role === 'EMPLOYER' ? <EmployerDashboard /> : role === 'EVALUATOR' ? <EvaluatorDashboard /> : <AdminPage /> }],
     })),
-    { element: <ProtectedRoute role="CANDIDATE" />, children: [{ path: '/candidate/onboarding', element: <TradeOnboardingPage /> }, { path: '/candidate/verification', element: <VerificationPage /> }, { path: '/candidate/profile', element: <CandidateProfilePage /> }, { path: '/candidate/assessments', element: <AssessmentsPage /> }, { path: '/candidate/assessments/:id', element: <AttemptPage /> }, { path: '/candidate/bookings', element: <BookingPage /> }] },
+    { element: <ProtectedRoute role="CANDIDATE" />, children: [{ path: '/candidate/applications/:id/assessment', element: <ApplicationAssessmentPage /> }, { path: '/candidate/cv', element: <CvBuilderPage /> }, { path: '/candidate/cv/preview', element: <CvPreviewPage /> }, { path: '/candidate/payments/:id', element: <DemoPaymentPage /> }, { path: '/candidate/jobs', element: <CandidateJobsPage /> }, { path: '/candidate/jobs/:id', element: <CandidateJobPage /> }, { path: '/candidate/applications', element: <MyApplicationsPage /> }, { path: '/candidate/onboarding', element: <TradeOnboardingPage /> }, { path: '/candidate/verification', element: <VerificationPage /> }, { path: '/candidate/profile', element: <CandidateProfilePage /> }, { path: '/candidate/assessments', element: <AssessmentsPage /> }, { path: '/candidate/assessments/:id', element: <AttemptPage /> }, { path: '/candidate/bookings', element: <BookingPage /> }] },
     { element: <ProtectedRoute role="EMPLOYER" />, children: [
+      { path: '/employer/jobs/:jobId/applications/:id/cv/:candidateId', element: <CvPreviewPage /> },
+      { path: '/employer/jobs/:jobId/applications/:id/assessment', element: <EmployerAssessmentPage /> },
+      { path: '/employer/verification', element: <VerificationPage /> },
       { path: '/employer/profile', element: <EmployerProfilePage /> },
+      { path: '/employer/payments/:id', element: <DemoPaymentPage /> },
       { path: '/employer/jobs', element: <JobsPage /> },
+      { path: '/employer/jobs/:jobId/applications', element: <CandidateSearchPage /> },
+      { path: '/employer/jobs/:jobId/applications/:id', element: <ApplicantDetailPage /> },
       { path: '/employer/candidates', element: <CandidateSearchPage /> },
     ] },
     { element: <ProtectedRoute role="EVALUATOR" />, children: [{ path: '/evaluator/verifications', element: <VerificationQueuePage /> }, { path: '/evaluator/verifications/:id', element: <VerificationReviewPage /> }, { path: '/evaluator/attempts/:id', element: <EvaluationPage /> }, { path: '/evaluator/bookings', element: <BookingPage /> }] },

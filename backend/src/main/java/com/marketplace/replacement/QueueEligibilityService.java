@@ -17,7 +17,7 @@ import java.util.*;
 public class QueueEligibilityService {
     private final CandidateProfileRepository candidates;
     private final CandidateSkillRepository skills;
-    private final VerificationRecordRepository verifications;
+    private final VerificationChecklist verifications;
     private final EvaluationRepository evaluations;
     private final WaitingListEntryRepository queue;
     private final PlacementRepository placements;
@@ -29,8 +29,7 @@ public class QueueEligibilityService {
         var checks=new ArrayList<Check>();
         checks.add(new Check("TRADE", c.getCandidateType()==CandidateType.TRADE));
         checks.add(new Check("ACTIVE_ACCOUNT", c.getUser().getAccountStatus()==AccountStatus.ACTIVE && c.getUser().getRole()==Role.CANDIDATE));
-        checks.add(new Check("VERIFIED",verifications.findFirstByCandidateIdOrderBySubmittedAtDescIdDesc(candidateId)
-            .map(v->v.getStatus()==VerificationStatus.VERIFIED).orElse(false)));
+        checks.add(new Check("VERIFIED","VERIFIED".equals(verifications.candidateStatus(candidateId))));
         var tradeSkills=skills.findByCandidateId(candidateId).stream().filter(s->s.getSkill().isActive() && "TRADE".equals(s.getSkill().getCategory()))
             .filter(s->requiredSkillId==null || s.getSkill().getId().equals(requiredSkillId)).toList();
         checks.add(new Check("TRADE_SKILL",c.getPrimaryTradeCategory()!=null && !c.getPrimaryTradeCategory().isBlank() && !tradeSkills.isEmpty()));

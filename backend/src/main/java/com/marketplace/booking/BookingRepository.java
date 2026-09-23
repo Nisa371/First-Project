@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 public interface BookingRepository extends JpaRepository<Booking, Long> {
     List<Booking> findBySlotEvaluatorUserIdOrderByCreatedAtDesc(Long userId);
     List<Booking> findByCandidateIdOrderByCreatedAtDesc(Long candidateId);
+    java.util.Optional<Booking> findFirstBySlotIdAndCandidateIdAndStatus(Long slotId, Long candidateId, BookingStatus status);
     long countBySlotIdAndStatus(Long slotId, BookingStatus status);
     boolean existsBySlotIdAndCandidateIdAndStatus(Long slotId, Long candidateId, BookingStatus status);
 

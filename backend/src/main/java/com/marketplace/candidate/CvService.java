@@ -22,9 +22,10 @@ public class CvService {
     private final CandidateProfileRepository candidates;
     private final CurrentAccount current;
     private final Path root;
-    public CvService(CandidateService profiles, CandidateProfileRepository candidates, CurrentAccount current,
+    private final com.marketplace.job.JobApplicationRepository applications;
+    public CvService(CandidateService profiles, CandidateProfileRepository candidates, CurrentAccount current, com.marketplace.job.JobApplicationRepository applications,
         @Value("${app.cv.directory:uploads/cv}") String directory) {
-        this.profiles=profiles; this.candidates=candidates; this.current=current;
+        this.applications=applications; this.profiles=profiles; this.candidates=candidates; this.current=current;
         this.root=Path.of(directory).toAbsolutePath().normalize();
     }
     @Transactional
@@ -59,7 +60,7 @@ public class CvService {
         var user=current.requireActive();
         var c=candidateId==null ? profiles.own() : candidates.findById(candidateId).orElseThrow(CandidateService::missing);
         if(user.getRole()==Role.CANDIDATE) current.requireOwner(c.getUser().getId());
-        else if(c.getUser().getAccountStatus()!=AccountStatus.ACTIVE || c.getUser().getRole()!=Role.CANDIDATE)
+        else if(!applications.existsByCandidateIdAndJobEmployerUserId(c.getId(),user.getId()) || c.getUser().getAccountStatus()!=AccountStatus.ACTIVE || c.getUser().getRole()!=Role.CANDIDATE)
             throw CandidateService.missing();
         if(c.getCvStoredName()==null || !Files.isRegularFile(path(c.getCvStoredName()))) throw CandidateService.missing();
         return Files.readAllBytes(path(c.getCvStoredName()));

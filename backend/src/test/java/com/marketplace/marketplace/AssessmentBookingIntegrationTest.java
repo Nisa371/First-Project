@@ -20,6 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @ActiveProfiles("test") @SpringBootTest @AutoConfigureMockMvc
 class AssessmentBookingIntegrationTest {
+    @Autowired com.marketplace.companytype.CompanyTypeRepository companyTypes;
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
     @Autowired UserRepository users;
@@ -34,6 +35,7 @@ class AssessmentBookingIntegrationTest {
         var data=new HashMap<String,Object>(Map.of("email",UUID.randomUUID()+"@example.com","password","SafePass123!",
             "accountType",role.equals("EMPLOYER")?role:"CANDIDATE","fullName","M5 Candidate","companyName","M5 Company"));
         if(!role.equals("EMPLOYER")) data.put("candidateType",track);
+        if(role.equals("EMPLOYER")) data.put("companyTypeId",companyTypes.findByNormalizedName("pharmaceuticals").orElseThrow().getId());
         var response=mvc.perform(post("/api/auth/register").contentType("application/json").content(mapper.writeValueAsString(data)))
             .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
         var tree=mapper.readTree(response); Long id=tree.get("user").get("id").asLong();
@@ -99,7 +101,14 @@ class AssessmentBookingIntegrationTest {
         return mapper.readTree(mvc.perform(post("/api/evaluator/appointment-slots").header("Authorization",evaluator.auth).contentType("application/json").content(body)).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString()).get("id").asLong();
     }
     String bookingBody(Long id) { return "{\"slotId\":"+id+",\"purpose\":\"CONSULTATION\",\"notes\":\"Discuss next steps\"}"; }
-    Long book(Account c,Long slot) throws Exception { return mapper.readTree(mvc.perform(post("/api/bookings").header("Authorization",c.auth).contentType("application/json").content(bookingBody(slot))).andExpect(status().isCreated()).andReturn().getResponse().getContentAsString()).get("id").asLong(); }
+    Long book(Account c,Long slot) throws Exception {
+        Long id=mapper.readTree(mvc.perform(post("/api/bookings").header("Authorization",c.auth).contentType("application/json").content(bookingBody(slot))).andExpect(status().isCreated()).andExpect(jsonPath("$.status").value("PENDING_PAYMENT")).andReturn().getResponse().getContentAsString()).get("id").asLong();
+        assertThat(pay(c,id)).isEqualTo(200); return id;
+    }
+    int pay(Account c,Long id) throws Exception {
+        Long paymentId=mapper.readTree(mvc.perform(post("/api/bookings/"+id+"/payment").header("Authorization",c.auth)).andExpect(status().isOk()).andReturn().getResponse().getContentAsString()).get("id").asLong();
+        return mvc.perform(post("/api/payments/"+paymentId+"/demo-success").header("Authorization",c.auth)).andReturn().getResponse().getStatus();
+    }
     @Test void bookingCapacityOverlapOwnershipCancellationAndSlotRules() throws Exception {
         var e=account("EVALUATOR","TECH"); var other=account("EVALUATOR","TECH"); var c=account("CANDIDATE","TECH"); var stranger=account("CANDIDATE","TECH");
         var start=Instant.now().plusSeconds(86400); var s=slot(e,start,1); var overlap=slot(other,start.plusSeconds(600),2); var adjacent=slot(e,start.plusSeconds(1800),1);
@@ -127,16 +136,18 @@ class AssessmentBookingIntegrationTest {
     @Test void concurrentBookingDoesNotOverflowCapacityOrDoubleBookCandidate() throws Exception {
         var e=account("EVALUATOR","TECH"); var other=account("EVALUATOR","TECH"); var c=account("CANDIDATE","TECH"); var d=account("CANDIDATE","TECH");
         var start=Instant.now().plusSeconds(172800); var s=slot(e,start,1);
-        assertThat(race(c,s,d,s)).containsExactlyInAnyOrder(201,409);
+        assertThat(race(c,s,d,s)).containsExactlyInAnyOrder(200,409);
         assertThat(bookings.countBySlotIdAndStatus(s,BookingStatus.BOOKED)).isEqualTo(1);
         var a=slot(e,start.plusSeconds(7200),2); var b=slot(other,start.plusSeconds(7500),2);
-        assertThat(race(c,a,c,b)).containsExactlyInAnyOrder(201,409);
+        assertThat(race(c,a,c,b)).containsExactlyInAnyOrder(200,409);
     }
     List<Integer> race(Account a,Long first,Account b,Long second) throws Exception {
         var ready=new java.util.concurrent.CountDownLatch(2); var go=new java.util.concurrent.CountDownLatch(1);
         try(var pool=java.util.concurrent.Executors.newFixedThreadPool(2)) {
             var futures=new ArrayList<java.util.concurrent.Future<Integer>>();
-            for(var pair:List.of(Map.entry(a,first),Map.entry(b,second))) futures.add(pool.submit(() -> { ready.countDown(); go.await(); return mvc.perform(post("/api/bookings").header("Authorization",pair.getKey().auth).contentType("application/json").content(bookingBody(pair.getValue()))).andReturn().getResponse().getStatus(); }));
+            for(var pair:List.of(Map.entry(a,first),Map.entry(b,second))) futures.add(pool.submit(() -> { ready.countDown(); go.await(); var response=mvc.perform(post("/api/bookings").header("Authorization",pair.getKey().auth).contentType("application/json").content(bookingBody(pair.getValue()))).andReturn().getResponse();
+                if(response.getStatus()!=201) return response.getStatus();
+                return pay(pair.getKey(),mapper.readTree(response.getContentAsString()).get("id").asLong()); }));
             assertThat(ready.await(10,java.util.concurrent.TimeUnit.SECONDS)).isTrue(); go.countDown();
             return List.of(futures.get(0).get(20,java.util.concurrent.TimeUnit.SECONDS),futures.get(1).get(20,java.util.concurrent.TimeUnit.SECONDS));
         }

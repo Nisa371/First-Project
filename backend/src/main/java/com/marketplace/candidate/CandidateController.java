@@ -26,6 +26,7 @@ public class CandidateController {
         return ResponseEntity.ok().header("Content-Type","application/pdf").header("Content-Disposition","attachment; filename=resume.pdf")
             .header("Cache-Control","no-store").header("X-Content-Type-Options","nosniff").body(bytes);
     }
+    @GetMapping("/{id}") public CandidateCard applicant(@PathVariable Long id) { return service.applicant(id); }
     @GetMapping public SearchPage search(@RequestParam(required=false) CandidateType candidateType,
         @RequestParam(required=false) String location, @RequestParam(required=false) Long skillId,
         @RequestParam(required=false) Availability availability, @RequestParam(defaultValue="0") int page) {

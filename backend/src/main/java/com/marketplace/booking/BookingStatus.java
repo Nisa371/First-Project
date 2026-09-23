@@ -1,5 +1,5 @@
 package com.marketplace.booking;
 
 public enum BookingStatus {
-    BOOKED, COMPLETED, CANCELLED, NO_SHOW
+    PENDING_PAYMENT, BOOKED, COMPLETED, CANCELLED, NO_SHOW
 }

@@ -24,6 +24,7 @@ public class AuthService {
     private final JwtService jwt;
     private final AuditService audit;
     private final CurrentAccount current;
+    private final com.marketplace.companytype.CompanyTypeService companyTypes;
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
@@ -56,6 +57,7 @@ public class AuthService {
             var profile = new EmployerProfile();
             profile.setUser(user);
             profile.setCompanyName(request.companyName().strip());
+            companyTypes.select(profile, request.companyTypeId(), request.customCompanyType());
             employers.save(profile);
         }
         audit.recordAccountEvent(user, Action.ACCOUNT_REGISTERED);

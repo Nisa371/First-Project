@@ -12,9 +12,10 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import static com.marketplace.booking.BookingDtos.*;
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
 public class BookingService {
     private final CurrentAccount current;
+    private final com.marketplace.payment.PaymentRepository payments;
     private final CandidateProfileRepository candidates;
     private final UserRepository users;
     private final AppointmentSlotRepository slots;
@@ -33,7 +34,9 @@ public class BookingService {
         if(!s.isActive() || !s.getStartTime().isAfter(Instant.now())) throw conflict("This slot is no longer available.");
         if(bookings.hasOverlappingBooking(c.getId(),s.getStartTime(),s.getEndTime())) throw conflict("You already have an appointment during this time.");
         if(bookings.countBySlotIdAndStatus(s.getId(),BookingStatus.BOOKED)>=s.getCapacity()) throw conflict("This slot is full. Please choose another time.");
-        var b=new Booking(); b.setCandidate(c); b.setSlot(s); b.setPurpose(r.purpose()); b.setNotes(r.notes());
+        var pending=bookings.findFirstBySlotIdAndCandidateIdAndStatus(s.getId(),c.getId(),BookingStatus.PENDING_PAYMENT);
+        if(pending.isPresent()) return view(pending.get());
+        var b=new Booking(); b.setStatus(BookingStatus.PENDING_PAYMENT); b.setCandidate(c); b.setSlot(s); b.setPurpose(r.purpose()); b.setNotes(r.notes());
         return view(bookings.saveAndFlush(b));
     }
     @PreAuthorize("hasRole('CANDIDATE')")
@@ -41,10 +44,24 @@ public class BookingService {
         var c=candidate(); candidates.findByIdForUpdate(c.getId()).orElseThrow(BookingService::missing);
         var b=bookings.findById(id).orElseThrow(BookingService::missing);
         if(!b.getCandidate().getId().equals(c.getId())) throw missing();
+        return cancelBooking(b);
+    }
+    @PreAuthorize("hasRole('ADMIN')")
+    public BookingView adminCancel(Long id) {
+        current.requireActive(); var b=bookings.findById(id).orElseThrow(BookingService::missing);
+        candidates.findByIdForUpdate(b.getCandidate().getId()).orElseThrow(BookingService::missing);
+        return cancelBooking(b);
+    }
+    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager entityManager;
+    private BookingView cancelBooking(Booking b) {
+        var id=b.getId();
         slots.findByIdForUpdate(b.getSlot().getId()).orElseThrow(BookingService::missing);
+        entityManager.refresh(b, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         if(b.getStatus()==BookingStatus.CANCELLED) return view(b);
-        if(b.getStatus()!=BookingStatus.BOOKED || !b.getSlot().getStartTime().isAfter(Instant.now())) throw conflict("Only upcoming bookings can be cancelled.");
-        b.setStatus(BookingStatus.CANCELLED); bookings.flush(); return view(b);
+        if(b.getStatus()!=BookingStatus.PENDING_PAYMENT && (b.getStatus()!=BookingStatus.BOOKED || !b.getSlot().getStartTime().isAfter(Instant.now()))) throw conflict("Only upcoming bookings can be cancelled.");
+        b.setStatus(BookingStatus.CANCELLED); payments.findByBookingId(id).filter(p -> p.getStatus()==com.marketplace.payment.PaymentStatus.PENDING).ifPresent(p -> {
+            p.setStatus(com.marketplace.payment.PaymentStatus.CANCELLED); p.setCompletedAt(java.time.Instant.now());
+        }); bookings.flush(); return view(b);
     }
     @PreAuthorize("hasRole('EVALUATOR')")
     public List<SlotView> ownSlots() { return slots.findByEvaluatorUserIdOrderByStartTimeAsc(current.requireActive().getId()).stream().map(this::slotView).toList(); }

@@ -21,9 +21,22 @@ import com.marketplace.user.User;
 @Entity
 @Table(name = "verification_records")
 public class VerificationRecord extends BaseEntity {
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "candidate_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "candidate_id")
     private CandidateProfile candidate;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_user_id")
+    private User owner;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "requirement_id")
+    private VerificationRequirement requirement;
+
+    @Column(length=80) private String storedName;
+    @Column(length=180) private String originalName;
+    @Column(length=80) private String contentType;
+    private Long fileSize;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)

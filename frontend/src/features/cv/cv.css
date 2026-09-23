@@ -1,0 +1,15 @@
+.cv-heading { margin-bottom: .6rem; font-size: .8rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: #334155; }
+@page { size: A4; margin: 15mm; }
+@media print {
+  body:has(.cv-document) { background: white; color: #0f172a; }
+  body:has(.cv-document) #root > div { max-width: none; padding: 0; }
+  body:has(.cv-document) #root > div > header,
+  body:has(.cv-document) #root > div > footer,
+  body:has(.cv-document) #root > div > a,
+  .cv-preview-page > div > :not(.cv-document) { display: none !important; }
+  body:has(.cv-document) main { padding: 0; }
+  .cv-document { max-width: none; padding: 0; border: 0; border-radius: 0; box-shadow: none; font-size: 10pt; }
+  .cv-document h3, .cv-document h4 { break-after: avoid; }
+  .cv-entry { break-inside: avoid; overflow-wrap: anywhere; }
+  .cv-document a::after { content: ' (' attr(href) ')'; font-size: 8pt; }
+}

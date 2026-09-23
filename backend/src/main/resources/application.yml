@@ -14,6 +14,7 @@ spring:
   jackson:
     deserialization:
       fail-on-unknown-properties: true
+      accept-float-as-int: false
   jpa:
     hibernate:
       ddl-auto: none
@@ -29,6 +30,24 @@ server:
   port: ${SERVER_PORT:8080}
 
 app:
+  trade-assistant:
+    recent-message-limit: 12
+  assessment:
+    max-turns: ${ASSESSMENT_MAX_TURNS:6}
+  ai:
+    provider: ${AI_PROVIDER:UNCONFIGURED}
+    api-key: ${AI_API_KEY:}
+    model: ${AI_MODEL:}
+    base-url: ${AI_BASE_URL:}
+    timeout: ${AI_TIMEOUT:30s}
+  demo-payment:
+    job-posting-fee: ${DEMO_JOB_POSTING_FEE:500.00}
+    session-booking-fee: ${DEMO_SESSION_BOOKING_FEE:100.00}
+    currency: ${DEMO_PAYMENT_CURRENCY:BDT}
+  verification:
+    directory: ${VERIFICATION_STORAGE_DIRECTORY:uploads/verification}
+  photo:
+    directory: ${PHOTO_STORAGE_DIRECTORY:uploads/photos}
   cv:
     directory: ${CV_STORAGE_DIRECTORY:uploads/cv}
   jwt:

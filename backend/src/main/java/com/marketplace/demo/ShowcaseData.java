@@ -28,6 +28,7 @@ import java.math.BigDecimal;
 @Component @Profile("dev") @RequiredArgsConstructor
 @ConditionalOnProperty(name="app.demo.enabled",havingValue="true")
 public class ShowcaseData implements ApplicationRunner {
+ private final com.marketplace.companytype.CompanyTypeCatalog companyTypes;
  private final UserRepository users; private final PasswordEncoder encoder;
  private final CandidateProfileRepository candidates; private final CandidateSkillRepository candidateSkills;
  private final EmployerProfileRepository employers; private final SkillRepository skills;
@@ -85,7 +86,7 @@ public class ShowcaseData implements ApplicationRunner {
   var slot=new AppointmentSlot();slot.setEvaluatorUser(evaluator);slot.setStartTime(now.plus(1,ChronoUnit.DAYS));slot.setEndTime(now.plus(1,ChronoUnit.DAYS).plus(1,ChronoUnit.HOURS));slot.setCapacity(3);slots.save(slot);
  }
  private User user(String name,Role role,String hash){var u=new User();u.setEmail(name+"@showcase.example.test");u.setRole(role);u.setPasswordHash(hash);return users.save(u);}
- private EmployerProfile company(String account,String name,String industry,String hash){var e=new EmployerProfile();e.setUser(user(account,Role.EMPLOYER,hash));e.setCompanyName(name);e.setIndustry(industry);e.setAddress("Dhaka · fictional demo office");e.setDescription("A fictional showcase employer supporting fair, skills-based hiring.");return employers.save(e);}
+ private EmployerProfile company(String account,String name,String industry,String hash){var e=new EmployerProfile();e.setUser(user(account,Role.EMPLOYER,hash));e.setCompanyName(name);e.setIndustry(industry);companyTypes.migrate(e);e.setAddress("Dhaka · fictional demo office");e.setDescription("A fictional showcase employer supporting fair, skills-based hiring.");return employers.save(e);}
  private Job job(EmployerProfile company,String title,String description,Skill skill,CandidateType type){var j=new Job();j.setEmployer(company);j.setTitle(title);j.setDescription(description);j.setLocation("Dhaka");j.setRequiredSkill(skill);j.setCandidateType(type);j.setStatus(JobStatus.ACTIVE);return jobs.save(j);}
  private Placement placement(CandidateProfile c,EmployerProfile e,Job j,Skill skill,Instant now,boolean guarantee){var p=new Placement();p.setCandidate(c);p.setEmployer(e);p.setJob(j);p.setSkill(skill);p.setStatus(PlacementStatus.ACTIVE);p.setStartDate(LocalDate.ofInstant(now,ZoneOffset.UTC).minusDays(2));p.setGuaranteeEligible(guarantee);if(guarantee)p.setGuaranteeExpiresAt(now.plus(28,ChronoUnit.DAYS));return placements.save(p);}
  private void notify(User u,String title,String message){var n=new Notification();n.setUser(u);n.setTitle(title);n.setMessage(message);notifications.save(n);}

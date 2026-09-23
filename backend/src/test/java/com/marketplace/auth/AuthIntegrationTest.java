@@ -26,6 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @org.springframework.context.annotation.Import(AuthIntegrationTest.RoleProbe.class)
 class AuthIntegrationTest {
+    @Autowired com.marketplace.companytype.CompanyTypeRepository companyTypes;
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper mapper;
     @Autowired UserRepository users;
@@ -67,6 +68,7 @@ class AuthIntegrationTest {
     String payload(String email, String type, String track) {
         return "{\"email\":\"" + email + "\",\"password\":\"SafePass123!\",\"accountType\":\"" + type
                 + "\",\"fullName\":\"Demo Candidate\",\"companyName\":\"Demo Company\""
+                + (type.equals("EMPLOYER") ? ",\"companyTypeId\":" + companyTypes.findByNormalizedName("pharmaceuticals").orElseThrow().getId() : "")
                 + (track == null ? "" : ",\"candidateType\":\"" + track + "\"") + "}";
     }
     String register(String email, String type, String track) throws Exception {

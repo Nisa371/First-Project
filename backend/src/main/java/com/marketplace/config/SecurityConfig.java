@@ -45,9 +45,12 @@ public class SecurityConfig {
                         SessionCreationPolicy.STATELESS))
                 .requestCache(cache -> cache.disable())
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(HttpMethod.GET, "/api/health").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/candidates/*/photo").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/health", "/api/company-types").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/register", "/api/auth/login").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/evaluator/verifications/*/review").hasRole("ADMIN")
+                        .requestMatchers("/api/evaluator/verifications", "/api/evaluator/verifications/**").hasAnyRole("EVALUATOR", "ADMIN")
                         .requestMatchers("/api/evaluator/**", "/api/evaluators/**").hasRole("EVALUATOR")
                         .requestMatchers("/api/candidates/me", "/api/candidates/me/**").hasRole("CANDIDATE")
                         .requestMatchers("/api/employers/me", "/api/employers/me/**").hasRole("EMPLOYER")
