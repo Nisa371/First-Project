@@ -1,8 +1,9 @@
 spring:
   datasource:
-    url: ${DB_URL:jdbc:mysql://localhost:3306/verified_career_marketplace?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&useUnicode=true&characterEncoding=UTF-8}
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:}
+    url: ${DB_URL:jdbc:mysql://${DB_HOST:localhost}:${DB_PORT:3306}/${DB_NAME:verified_career_marketplace}?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&useUnicode=true&characterEncoding=UTF-8}
+    username: ${DB_USERNAME:marketplace}
+    # Public local/demo default only; override for private databases.
+    password: ${DB_PASSWORD:marketplace123}
     driver-class-name: com.mysql.cj.jdbc.Driver
   jpa:
     hibernate:
