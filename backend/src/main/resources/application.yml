@@ -40,6 +40,10 @@ app:
     model: ${AI_MODEL:}
     base-url: ${AI_BASE_URL:}
     timeout: ${AI_TIMEOUT:30s}
+    gemini:
+      api-key: ${GEMINI_API_KEY:}
+      model: ${GEMINI_MODEL:gemini-3.8-flash}
+      thinking-level: ${GEMINI_THINKING_LEVEL:low}
   demo-payment:
     job-posting-fee: ${DEMO_JOB_POSTING_FEE:500.00}
     session-booking-fee: ${DEMO_SESSION_BOOKING_FEE:100.00}

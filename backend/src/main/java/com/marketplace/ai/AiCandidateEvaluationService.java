@@ -54,7 +54,7 @@ public class AiCandidateEvaluationService {
             attempt.finish("UNAVAILABLE", "AI_PROVIDER_NOT_CONFIGURED"); return;
         } catch (EvaluationRequestBuilder.InsufficientInput e) {
             attempt.finish("UNAVAILABLE", cv ? "INSUFFICIENT_CV_DATA" : "INSUFFICIENT_PORTFOLIO_DATA"); return;
-        } catch (InvalidResponse e) {
+        } catch (InvalidResponse | AiProviderInvalidResponseException e) {
             attempt.finish("FAILED", "INVALID_AI_RESPONSE"); return;
         } catch (RuntimeException e) {
             // Never return provider exception text, prompts or configuration to the caller.

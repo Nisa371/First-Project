@@ -12,6 +12,7 @@ import static com.marketplace.tradeassistant.TradeAssistantDtos.*;
 @Service @PreAuthorize("hasRole('CANDIDATE')")
 @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
 public class TradeAssistantService {
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(TradeAssistantService.class);
     private final CurrentAccount current;
     private final CandidateProfileRepository candidates;
     private final TradeAssistantRepository conversations;
@@ -33,18 +34,28 @@ public class TradeAssistantService {
     public View reply(Input input) {
         var c=owner(); c=candidates.findByIdForUpdate(c.getId()).orElseThrow(CandidateService::missing);
         var conversation=conversations.findById(c.getId()).orElseGet(TradeAssistantConversation::new);
+        String previousRequestId = org.slf4j.MDC.get("requestId");
+        String requestId = java.util.UUID.randomUUID().toString();
         String answer;
-        try {
+        try (var ignored = org.slf4j.MDC.putCloseable("requestId", requestId)) {
             answer=provider.reply(new ProviderRequest(TradeGuidance.INSTRUCTION, guidance.build(c), view(conversation,null).messages(),input.message().strip()));
-            if(answer==null || answer.isBlank() || answer.length()>4000) return view(conversation,"AI_PROVIDER_INVALID_RESPONSE");
-        } catch(AiEvaluationUnavailableException e) { return view(conversation,"AI_PROVIDER_NOT_CONFIGURED"); }
-        catch(RuntimeException e) { return view(conversation,"AI_PROVIDER_UNAVAILABLE"); }
+            if(answer==null || answer.isBlank() || answer.length()>4000) return failure(conversation,requestId,"INVALID_RESPONSE");
+        } catch(AiEvaluationUnavailableException e) { return failure(conversation,requestId,"NOT_CONFIGURED"); }
+        catch(AiProviderInvalidResponseException e) { return failure(conversation,requestId,"INVALID_RESPONSE"); }
+        catch(AiProviderRequestException e) { return failure(conversation,requestId,e.type().name()); }
+        catch(RuntimeException e) { return failure(conversation,requestId,"UNAVAILABLE"); }
+        finally { if (previousRequestId != null) org.slf4j.MDC.put("requestId", previousRequestId); }
         conversation.setCandidateId(c.getId());
         conversation.getMessages().add(new TradeAssistantConversation.Entry("USER",input.message().strip()));
         conversation.getMessages().add(new TradeAssistantConversation.Entry("ASSISTANT",answer.strip()));
         while(conversation.getMessages().size()>limit) conversation.getMessages().removeFirst();
-        conversations.save(conversation);
+        conversations.saveAndFlush(conversation);
+        log.info("trade_assistant requestId={} status=success providerErrorType=NONE", requestId);
         return view(conversation,null);
+    }
+    private View failure(TradeAssistantConversation conversation, String requestId, String type) {
+        log.warn("trade_assistant requestId={} status=failure providerErrorType={}", requestId, type);
+        return view(conversation, "AI_PROVIDER_" + type);
     }
     private View view(TradeAssistantConversation c,String failure) {
         return new View(failure,c==null?List.of():c.getMessages().stream().skip(Math.max(0,c.getMessages().size()-limit))

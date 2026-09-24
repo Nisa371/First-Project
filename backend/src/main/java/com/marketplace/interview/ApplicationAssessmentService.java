@@ -144,7 +144,7 @@ public class ApplicationAssessmentService {
     }
     private String failure(RuntimeException e) {
         if (e instanceof AiEvaluationUnavailableException) return "AI_PROVIDER_NOT_CONFIGURED";
-        if (e instanceof AssessmentContextBuilder.InvalidOutput) return "INVALID_AI_RESPONSE";
+        if (e instanceof AssessmentContextBuilder.InvalidOutput || e instanceof AiProviderInvalidResponseException) return "INVALID_AI_RESPONSE";
         return "AI_ASSESSMENT_FAILED";
     }
     private static ApiException conflict(String code,String message) { return new ApiException(409,code,message); }
