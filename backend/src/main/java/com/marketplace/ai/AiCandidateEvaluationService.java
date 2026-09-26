@@ -20,6 +20,15 @@ public class AiCandidateEvaluationService {
     private final ApplicationEvaluationService scores;
     private final JobApplicationService views;
 
+    // Internal after-commit entry point. No HTTP endpoint or request security context.
+    public void evaluateSubmitted(Long applicationId) {
+        var a = applications.findForEvaluation(applicationId).orElse(null);
+        if (a == null || a.getStatus() == ApplicationStatus.WITHDRAWN) return;
+        // The application lock serializes duplicate deliveries and manual evaluations.
+        if (a.getCvScore() == null) attempt(a, true);
+        if (a.getPortfolioScore() == null) attempt(a, false);
+    }
+
     @PreAuthorize("hasRole('EMPLOYER')")
     public JobDtos.Applicant evaluate(Long jobId, Long applicationId, Component component) {
         jobs.findOwnedForUpdate(jobId, current.requireActive().getId()).orElseThrow(CandidateService::missing);

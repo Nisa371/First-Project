@@ -41,6 +41,7 @@ public class AssessmentService {
     public AssessmentView get(Long id) { return assessmentView(eligible(id)); }
     @PreAuthorize("hasRole('CANDIDATE')")
     public AttemptView start(Long id) {
+        requireApplicationAssessment();
         var c=candidate(); candidates.findByIdForUpdate(c.getId()).orElseThrow(AssessmentService::missing);
         var a=eligible(id);
         if(questions.findByAssessmentIdOrderByIdAsc(id).isEmpty()) throw conflict("This assessment has no questions yet.");
@@ -50,6 +51,12 @@ public class AssessmentService {
         if(existing.isPresent()) return view(existing.get());
         var t=new AssessmentAttempt(); t.setCandidate(c); t.setAssessment(a);
         return view(attempts.saveAndFlush(t));
+    }
+    private void requireApplicationAssessment() {
+        current.requireActive();
+        // Legacy attempts have no JobApplication. Keep their data and review/scoring code,
+        // but candidate mutations must use the application-based assessment service.
+        throw new ApiException(403,"APPLICATION_REQUIRED","Start assessments from your own job application.");
     }
     private AssessmentAttempt own(Long id) {
         var t=attempts.findByIdForUpdate(id).orElseThrow(AssessmentService::missing);
@@ -65,6 +72,7 @@ public class AssessmentService {
     }
     @PreAuthorize("hasRole('CANDIDATE')")
     public AttemptView save(Long id, AnswersRequest r) {
+        requireApplicationAssessment();
         var t=own(id); inProgress(t);
         var ids=questions.findByAssessmentIdOrderByIdAsc(t.getAssessment().getId()).stream().map(AssessmentQuestion::getId).toList();
         if(!ids.containsAll(r.answers().keySet())) throw new ApiException(400,"INVALID_ANSWER","An answer does not belong to this assessment.");
@@ -72,6 +80,7 @@ public class AssessmentService {
     }
     @PreAuthorize("hasRole('CANDIDATE')")
     public AttemptView submit(Long id) {
+        requireApplicationAssessment();
         var t=own(id);
         if(t.getStatus()!=AttemptStatus.IN_PROGRESS) return view(t);
         var qs=questions.findByAssessmentIdOrderByIdAsc(t.getAssessment().getId());

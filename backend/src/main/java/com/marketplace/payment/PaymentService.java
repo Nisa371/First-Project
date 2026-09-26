@@ -17,6 +17,7 @@ import java.util.*;
 @PreAuthorize("hasAnyRole('EMPLOYER','CANDIDATE')")
 public class PaymentService {
     private final CurrentAccount current;
+    private final com.marketplace.verification.VerificationChecklist verifications;
     private final PaymentRepository payments;
     private final DemoPaymentPrices prices;
     private final JobRepository jobs;
@@ -28,6 +29,8 @@ public class PaymentService {
     public PaymentView job(Long id) {
         var u=current.requireActive();
         var j=jobs.findOwnedForUpdate(id,u.getId()).orElseThrow(PaymentService::missing);
+        if(!"VERIFIED".equals(verifications.forUser(j.getEmployer().getUser()).status()))
+            throw new ApiException(403,"VERIFICATION_REQUIRED","Employer verification is required before posting jobs.");
         if(j.getStatus()!=JobStatus.DRAFT) throw conflict("Only unpaid drafts need a posting payment.");
         var p=payments.findByJobId(id).orElseGet(() -> {
             var payment=new PaymentTransaction(); payment.setPayer(u); payment.setJob(j);
@@ -70,6 +73,8 @@ public class PaymentService {
         if(p.getStatus()!=PaymentStatus.PENDING) throw conflict("This payment is no longer pending.");
         if(!cancel) {
             if(j!=null) {
+                if(!"VERIFIED".equals(verifications.forUser(j.getEmployer().getUser()).status()))
+                    throw new ApiException(403,"VERIFICATION_REQUIRED","Employer verification is required before posting jobs.");
                 if(j.getStatus()!=JobStatus.DRAFT) throw conflict("This job is no longer an unpaid draft.");
             } else {
                 if(b.getStatus()!=BookingStatus.PENDING_PAYMENT) throw conflict("This booking is no longer pending.");

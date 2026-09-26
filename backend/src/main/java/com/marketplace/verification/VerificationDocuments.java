@@ -27,10 +27,13 @@ public class VerificationDocuments {
     private final VerificationRecordRepository records;
     private final VerificationChecklist checklist;
     private final Path root;
+    private final com.marketplace.notification.NotificationService notifications;
     public VerificationDocuments(CurrentAccount current, UserRepository users, CandidateProfileRepository candidates,
         EmployerProfileRepository employers, VerificationRecordRepository records, VerificationChecklist checklist,
+        com.marketplace.notification.NotificationService notifications,
         @Value("${app.verification.directory:uploads/verification}") String directory) {
         this.current=current;this.users=users;this.candidates=candidates;this.employers=employers;this.records=records;this.checklist=checklist;
+        this.notifications=notifications;
         root=Path.of(directory).toAbsolutePath().normalize();
     }
     public record Decision(@NotNull VerificationStatus status, @Size(max=3000) String notes) {}
@@ -108,6 +111,11 @@ public class VerificationDocuments {
         if(record.getRequirement()!=null && checklist.applicable(checklist.owner(record)).stream().noneMatch(r -> r.getId().equals(record.getRequirement().getId())))
             throw new ApiException(409,"REQUIREMENT_CHANGED","This requirement no longer applies. The submission remains in history.");
         record.setStatus(decision.status());record.setReviewerNotes(decision.notes()==null?null:decision.notes().strip());record.setReviewerUser(actor);record.setReviewedAt(Instant.now());
+        String message="Your verification submission #"+record.getId()+" was "+(decision.status()==VerificationStatus.VERIFIED?"approved.":"rejected.");
+        // Only uploaded-document notes are already visible to their owner; legacy notes stay private.
+        if(decision.status()==VerificationStatus.FAILED && record.getStoredName()!=null)
+            message+=" Reason: "+record.getReviewerNotes();
+        notifications.afterCommit(ownerId,"Verification result",message.length()>3000?message.substring(0,2999)+"…":message);
         return view(record);
     }
     private Review view(VerificationRecord v) {

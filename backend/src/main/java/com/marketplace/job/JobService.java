@@ -21,6 +21,7 @@ public class JobService {
     private final JobRepository jobs;
     private final EmployerService employers;
     private final CurrentAccount current;
+    private final com.marketplace.verification.VerificationChecklist verifications;
     private final com.marketplace.payment.PaymentRepository payments;
     private final SkillRepository skills;
     private final ShortlistEntryRepository shortlists;
@@ -66,6 +67,8 @@ public class JobService {
         current.requireActive(); var j=jobs.findByIdForUpdate(id).orElseThrow(CandidateService::missing);
         if(j.getEmployer().getUser().getAccountStatus()!=AccountStatus.ACTIVE || payments.findByJobId(id).filter(p -> p.getStatus()==com.marketplace.payment.PaymentStatus.SUCCESS).isEmpty())
             throw new ApiException(409,"PAYMENT_REQUIRED","Activation requires an active employer and a successful demo posting payment.");
+        if(!"VERIFIED".equals(verifications.forUser(j.getEmployer().getUser()).status()))
+            throw new ApiException(403,"VERIFICATION_REQUIRED","Employer verification is required before posting jobs.");
         j.setStatus(JobStatus.ACTIVE); return view(j);
     }
     private Job owned(Long id) {

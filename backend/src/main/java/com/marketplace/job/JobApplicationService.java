@@ -22,6 +22,9 @@ public class JobApplicationService {
     private final CandidateService candidateViews;
     private final ShortlistEntryRepository shortlists;
     private final CurrentAccount current;
+    private final com.marketplace.notification.NotificationService notifications;
+    private final org.springframework.context.ApplicationEventPublisher events;
+    private final com.marketplace.verification.VerificationChecklist verifications;
     @PreAuthorize("hasRole('CANDIDATE')")
     @Transactional(readOnly=true)
     public JobPage openings(JobSearch input) {
@@ -85,11 +88,23 @@ public class JobApplicationService {
     }
     @PreAuthorize("hasRole('CANDIDATE')")
     public ApplicationView apply(Long jobId) {
-        var c=candidate();var j=jobs.findByIdForUpdate(jobId).orElseThrow(CandidateService::missing);
+        var c=candidate();
+        if(!"VERIFIED".equals(verifications.forUser(c.getUser()).status()))
+            throw new ApiException(403,"VERIFICATION_REQUIRED","Candidate verification is required before applying for jobs.");
+        if(c.getAvailability()!=Availability.AVAILABLE)
+            throw new ApiException(403,"CANDIDATE_UNAVAILABLE","You are currently marked unavailable. Change your availability before applying for jobs.");
+        var j=jobs.findByIdForUpdate(jobId).orElseThrow(CandidateService::missing);
         if(!available(j)) throw conflict("JOB_CLOSED","This job is not accepting applications.");
         if(applications.existsByJobIdAndCandidateId(jobId,c.getId())) throw conflict("ALREADY_APPLIED","You already applied to this job. View My Applications.");
         var a=new JobApplication();a.setJob(j);a.setCandidate(c);
-        applications.saveAndFlush(a);return ownView(a);
+        applications.saveAndFlush(a);
+        notifications.afterCommit(j.getEmployer().getUser().getId(),"New application received",
+            "A new application #"+a.getId()+" was received for "+j.getTitle()+".");
+        // A successful application immediately enables the existing application assessment.
+        notifications.afterCommit(c.getUser().getId(),"Assessment available",
+            "You can now start the assessment for your application #"+a.getId()+" to "+j.getTitle()+".");
+        events.publishEvent(new JobApplicationSubmitted(a.getId()));
+        return ownView(a);
     }
     @PreAuthorize("hasRole('CANDIDATE')")
     public List<ApplicationView> mine() { return applications.findByCandidateUserIdOrderByCreatedAtDescIdDesc(current.requireActive().getId()).stream().map(this::ownView).toList(); }
@@ -123,8 +138,8 @@ public class JobApplicationService {
     }
     @PreAuthorize("hasRole('EMPLOYER')")
     public void removeShortlist(Long jobId,Long candidateId) {
-        ownedJob(jobId);
-        applications.findByJobIdAndCandidateId(jobId,candidateId).filter(a->a.getStatus()==ApplicationStatus.SHORTLISTED).ifPresent(a->a.setStatus(ApplicationStatus.UNDER_REVIEW));
+        var job=ownedJob(jobId);
+        applications.findByJobIdAndCandidateId(jobId,candidateId).filter(a->a.getStatus()==ApplicationStatus.SHORTLISTED).ifPresent(a->change(job,a,ApplicationStatus.UNDER_REVIEW));
         shortlists.findByJobIdAndCandidateId(jobId,candidateId).ifPresent(shortlists::delete);
     }
     @PreAuthorize("hasRole('ADMIN')")
@@ -149,7 +164,11 @@ public class JobApplicationService {
                 throw conflict("CANDIDATE_MISMATCH","Shortlisting requires an available applicant with the matching track and skill.");
             if(!shortlists.existsByJobIdAndCandidateId(j.getId(),c.getId())) { var s=new ShortlistEntry();s.setJob(j);s.setCandidate(c);shortlists.save(s); }
         } else clearShortlist(a);
-        a.setStatus(status);
+        if(a.getStatus()!=status) {
+            a.setStatus(status);
+            notifications.afterCommit(a.getCandidate().getUser().getId(),"Application status updated",
+                "Your application #"+a.getId()+" for "+j.getTitle()+" is now "+status.name().toLowerCase(java.util.Locale.ROOT).replace('_',' ')+".");
+        }
     }
     private void clearShortlist(JobApplication a) { shortlists.findByJobIdAndCandidateId(a.getJob().getId(),a.getCandidate().getId()).ifPresent(shortlists::delete); }
     private Job ownedJob(Long id) { return jobs.findOwnedForUpdate(id,current.requireActive().getId()).orElseThrow(CandidateService::missing); }
