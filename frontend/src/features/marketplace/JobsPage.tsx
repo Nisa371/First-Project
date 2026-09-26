@@ -1,3 +1,4 @@
+import { verification } from '../verification/api'
 import { payments } from '../payment/api'
 import { useLoad, words } from './useLoad'
 import { useState, type FormEvent } from 'react'
@@ -25,7 +26,9 @@ export function JobsPage() {
   }
   async function pay(id: number) {
     setBusy(true); setError('')
-    try { const payment = await payments.job(id); navigate(`/employer/payments/${payment.id}`) }
+    try {
+      if ((await verification.checklist()).status !== 'VERIFIED') { setError('Employer verification is required before posting jobs.'); return }
+      const payment = await payments.job(id); navigate(`/employer/payments/${payment.id}`) }
     catch (e) { setError(apiFailure(e).message) } finally { setBusy(false) }
   }
   async function close(id: number) {

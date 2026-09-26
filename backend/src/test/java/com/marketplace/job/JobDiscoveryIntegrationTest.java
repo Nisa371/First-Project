@@ -31,6 +31,8 @@ class JobDiscoveryIntegrationTest {
     @Autowired CompanyTypeRepository types;
     @Autowired SkillRepository skills;
     @Autowired JobApplicationRepository applications;
+    @Autowired com.marketplace.verification.VerificationChecklist checklist;
+    @Autowired com.marketplace.verification.VerificationRecordRepository records;
     User candidate;
     EmployerProfile employer;
     CompanyType sector;
@@ -51,7 +53,11 @@ class JobDiscoveryIntegrationTest {
         marker=UUID.randomUUID().toString();
         sector=new CompanyType();sector.setName("Discovery "+marker);sector.setNormalizedName(marker);types.saveAndFlush(sector);
         employer=new EmployerProfile();employer.setUser(user(Role.EMPLOYER));employer.setCompanyName("Discovery Company");employer.setCompanyType(sector);employers.saveAndFlush(employer);
-        candidate=user(Role.CANDIDATE);var c=new CandidateProfile();c.setUser(candidate);c.setFullName("Job seeker");c.setCandidateType(CandidateType.TECH);candidates.saveAndFlush(c);
+        candidate=user(Role.CANDIDATE);var c=new CandidateProfile();c.setUser(candidate);c.setFullName("Job seeker");c.setCandidateType(CandidateType.TECH);c.setAvailability(Availability.AVAILABLE);candidates.saveAndFlush(c);
+        for(var requirement:checklist.applicable(candidate)) {
+            var record=new com.marketplace.verification.VerificationRecord();record.setOwner(candidate);record.setCandidate(c);
+            record.setRequirement(requirement);record.setStatus(com.marketplace.verification.VerificationStatus.VERIFIED);records.saveAndFlush(record);
+        }
         junior=job("Junior Developer",0,JobStatus.ACTIVE);
         senior=job("Senior Engineer",24,JobStatus.ACTIVE);senior.setLocation("Chattogram");jobs.saveAndFlush(senior);
     }

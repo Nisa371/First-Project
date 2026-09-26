@@ -1,4 +1,15 @@
 export const tradeBn: Readonly<Record<string, string>> = {
+  "Candidate verification is required before applying for jobs.": "চাকরিতে আবেদন করার আগে আপনার যাচাই সম্পন্ন হতে হবে।",
+  "You are currently marked unavailable. Change your availability before applying for jobs.": "আপনি বর্তমানে কাজের জন্য অনুপলব্ধ। আবেদন করার আগে প্রাপ্যতার অবস্থা পরিবর্তন করুন।",
+  "Your application profile is incomplete.": "আপনার আবেদনের প্রোফাইল অসম্পূর্ণ।",
+  "Confirm application?": "আবেদন নিশ্চিত করবেন?",
+  "Confirm application": "আবেদন নিশ্চিত করুন",
+  "Missing:": "অসম্পূর্ণ:",
+  "Profile details": "প্রোফাইলের তথ্য",
+  "Apply Anyway": "তবুও আবেদন করুন",
+  "Applying without these may reduce your chance of getting hired. Do you still want to apply?": "এসব তথ্য ছাড়া আবেদন করলে চাকরি পাওয়ার সম্ভাবনা কমতে পারে। তবুও কি আবেদন করতে চান?",
+  "Open a job application to take its assessment.": "মূল্যায়ন দিতে আপনার চাকরির আবেদন খুলুন।",
+
   "Dashboard": "ড্যাশবোর্ড",
   "Sign out": "বের হন",
   "Skip to content": "মূল পাতায় যান",

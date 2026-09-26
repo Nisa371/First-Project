@@ -6,7 +6,7 @@ import { LoadState } from '../marketplace/shared'
 const labels: Record<string, [string, string]> = {
   TRADE: ['TRADE পরিচিতি · Trade track', '/candidate/onboarding'], ACTIVE_ACCOUNT: ['সক্রিয় অ্যাকাউন্ট · Active account', '/candidate/profile'],
   VERIFIED: ['প্ল্যাটফর্ম যাচাই · Platform verified', '/candidate/verification'], TRADE_SKILL: ['পেশা ও দক্ষতা · Trade & skill', '/candidate/onboarding'],
-  HIRE_READY: ['মূল্যায়নে প্রস্তুত · Hire-ready assessment', '/candidate/assessments'], AVAILABLE: ['কাজের জন্য প্রস্তুত · Available', '/candidate/profile'],
+  HIRE_READY: ['মূল্যায়নে প্রস্তুত · Hire-ready assessment', '/candidate/applications'], AVAILABLE: ['কাজের জন্য প্রস্তুত · Available', '/candidate/profile'],
   NOT_RESERVED: ['অন্য কাজে সংরক্ষিত নন · Not reserved', '/candidate/dashboard'], NO_ACTIVE_PLACEMENT: ['চলমান নিয়োগ নেই · No active placement', '/candidate/dashboard'],
 }
 export function ReadinessCard() {

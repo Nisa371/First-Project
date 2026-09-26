@@ -7,7 +7,6 @@ import { CandidateJobsPage, CandidateJobPage } from '../features/marketplace/Exp
 import { PlacementsPage, ReplacementsPage, QueuePage, AdminQueuePage, NotificationsPage } from '../features/placement/ManagedPages'
 import { TradeOnboardingPage } from '../features/trade/TradeOnboardingPage'
 import { VerificationPage, VerificationQueuePage, VerificationReviewPage } from '../features/trade/VerificationPages'
-import { AssessmentsPage, AttemptPage } from '../features/assessment/AssessmentPages'
 import { EvaluatorDashboard, EvaluationPage } from '../features/assessment/EvaluatorPages'
 import { BookingPage } from '../features/assessment/BookingPage'
 import { CandidateDashboard, EmployerDashboard } from '../features/marketplace/DashboardPage'
@@ -33,7 +32,7 @@ export const router = createBrowserRouter([
       element: <ProtectedRoute role={role} />,
       children: [{ path: `/${role.toLowerCase()}/dashboard`, element: role === 'CANDIDATE' ? <CandidateDashboard /> : role === 'EMPLOYER' ? <EmployerDashboard /> : role === 'EVALUATOR' ? <EvaluatorDashboard /> : <AdminPage /> }],
     })),
-    { element: <ProtectedRoute role="CANDIDATE" />, children: [{ path: '/candidate/applications/:id/assessment', element: <ApplicationAssessmentPage /> }, { path: '/candidate/cv', element: <CvBuilderPage /> }, { path: '/candidate/cv/preview', element: <CvPreviewPage /> }, { path: '/candidate/payments/:id', element: <DemoPaymentPage /> }, { path: '/candidate/jobs', element: <CandidateJobsPage /> }, { path: '/candidate/jobs/:id', element: <CandidateJobPage /> }, { path: '/candidate/applications', element: <MyApplicationsPage /> }, { path: '/candidate/onboarding', element: <TradeOnboardingPage /> }, { path: '/candidate/verification', element: <VerificationPage /> }, { path: '/candidate/profile', element: <CandidateProfilePage /> }, { path: '/candidate/assessments', element: <AssessmentsPage /> }, { path: '/candidate/assessments/:id', element: <AttemptPage /> }, { path: '/candidate/bookings', element: <BookingPage /> }] },
+    { element: <ProtectedRoute role="CANDIDATE" />, children: [{ path: '/candidate/applications/:id/assessment', element: <ApplicationAssessmentPage /> }, { path: '/candidate/cv', element: <CvBuilderPage /> }, { path: '/candidate/cv/preview', element: <CvPreviewPage /> }, { path: '/candidate/payments/:id', element: <DemoPaymentPage /> }, { path: '/candidate/jobs', element: <CandidateJobsPage /> }, { path: '/candidate/jobs/:id', element: <CandidateJobPage /> }, { path: '/candidate/applications', element: <MyApplicationsPage /> }, { path: '/candidate/onboarding', element: <TradeOnboardingPage /> }, { path: '/candidate/verification', element: <VerificationPage /> }, { path: '/candidate/profile', element: <CandidateProfilePage /> }, { path: '/candidate/bookings', element: <BookingPage /> }] },
     { element: <ProtectedRoute role="EMPLOYER" />, children: [
       { path: '/employer/jobs/:jobId/applications/:id/cv/:candidateId', element: <CvPreviewPage /> },
       { path: '/employer/jobs/:jobId/applications/:id/assessment', element: <EmployerAssessmentPage /> },

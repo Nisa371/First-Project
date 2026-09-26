@@ -1,3 +1,4 @@
+import { verification } from '../verification/api'
 import { useTradeText } from '../trade/useTradeText'
 import { useCallback, useState } from 'react'
 import { Link, useParams } from 'react-router'
@@ -14,9 +15,13 @@ export function DemoPaymentPage() {
   const [busy, setBusy] = useState(false), [error, setError] = useState('')
   const payment = state.data
   async function finish(cancel: boolean) {
-    if (!payment) return
+    if (!payment || busy) return
     setBusy(true); setError('')
-    try { state.setData(await (cancel ? payments.cancel(payment.id) : payments.complete(payment.id))) }
+    try {
+      if (!cancel && payment.purpose === 'JOB_POSTING' && (await verification.checklist()).status !== 'VERIFIED') {
+        setError('Employer verification is required before posting jobs.'); return
+      }
+      state.setData(await (cancel ? payments.cancel(payment.id) : payments.complete(payment.id))) }
     catch (e) { setError(apiFailure(e).message) } finally { setBusy(false) }
   }
   return <Workspace title={tr("Demo Payment")} subtitle={tr("No Real Money Will Be Charged")}><LoadState {...state} /><Feedback error={error} success={payment?.status === 'SUCCESS' ? (payment.purpose === 'JOB_POSTING' ? 'Demo payment successful. Your job is now published.' : tr("Demo payment successful. Your appointment is confirmed.")) : ''} />

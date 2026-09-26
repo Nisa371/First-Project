@@ -124,8 +124,14 @@ class ApplicationRankingIntegrationTest {
         }
         assertThat(applications.findById(a.getId()).orElseThrow().getCvScore()).isEqualByComparingTo("0.7");
     }
+    @Autowired com.marketplace.verification.VerificationChecklist checklist;
+    @Autowired com.marketplace.verification.VerificationRecordRepository records;
     @Test void rankingPreservesStatusesAndCandidatePrivacyAndIgnoresForgedScores() throws Exception {
         var e=employer();var c=candidate(0);var j=job(e);
+        for(var requirement:checklist.applicable(c.getUser())) {
+            var record=new com.marketplace.verification.VerificationRecord();record.setOwner(c.getUser());record.setCandidate(c);
+            record.setRequirement(requirement);record.setStatus(com.marketplace.verification.VerificationStatus.VERIFIED);records.saveAndFlush(record);
+        }
         mvc.perform(post(path(j)+"/apply").header("Authorization",auth(c.getUser())).contentType("application/json")
             .content("{\"cvScore\":1,\"experienceScore\":99,\"finalScore\":999}"))
             .andExpect(status().isCreated());

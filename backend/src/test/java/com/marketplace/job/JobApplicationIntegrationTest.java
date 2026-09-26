@@ -3,6 +3,10 @@ import com.marketplace.auth.JwtService;
 import com.marketplace.candidate.*;
 import com.marketplace.employer.*;
 import com.marketplace.user.*;
+import com.marketplace.verification.*;
+import com.marketplace.notification.*;
+import static org.mockito.Mockito.*;
+import static org.awaitility.Awaitility.await;
 import java.util.*;
 import java.util.concurrent.*;
 import org.junit.jupiter.api.Test;
@@ -20,9 +24,28 @@ class JobApplicationIntegrationTest {
     @Autowired MockMvc mvc; @Autowired ObjectMapper mapper; @Autowired JwtService jwt;
     @Autowired UserRepository users; @Autowired EmployerProfileRepository employers; @Autowired CandidateProfileRepository candidates;
     @Autowired JobRepository jobs; @Autowired JobApplicationRepository applications; @Autowired ShortlistEntryRepository shortlists;
+    @Autowired VerificationChecklist checklist;
+    @Autowired VerificationRecordRepository records;
+    @Autowired com.marketplace.companytype.CompanyTypeRepository types;
+    @Autowired NotificationRepository notices;
+    @Autowired CandidateCvRepository cvs;
+    @Autowired com.marketplace.interview.AssessmentSessionRepository sessions;
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    com.marketplace.ai.AiEvaluationProvider provider;
+    @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
+    NotificationService notificationService;
+    void verification(User u, VerificationStatus status) {
+        records.deleteAll(records.forUser(u.getId()));
+        if(status==null) return;
+        for(var requirement:checklist.applicable(u)) {
+            var r=new VerificationRecord();r.setOwner(u);r.setRequirement(requirement);r.setStatus(status);
+            if(u.getRole()==Role.CANDIDATE) r.setCandidate(candidates.findByUserId(u.getId()).orElseThrow());
+            records.saveAndFlush(r);
+        }
+    }
     User user(Role role) { var u=new User();u.setRole(role);u.setEmail(UUID.randomUUID()+"@example.test");u.setPasswordHash("test-only");return users.saveAndFlush(u); }
-    User employer() { var u=user(Role.EMPLOYER);var e=new EmployerProfile();e.setUser(u);e.setCompanyName("Application Company");employers.saveAndFlush(e);return u; }
-    User candidate() { var u=user(Role.CANDIDATE);var c=new CandidateProfile();c.setUser(u);c.setFullName("Applicant");c.setCandidateType(CandidateType.TECH);c.setAvailability(Availability.AVAILABLE);candidates.saveAndFlush(c);return u; }
+    User employer() { var u=user(Role.EMPLOYER);var e=new EmployerProfile();e.setUser(u);e.setCompanyName("Application Company");e.setCompanyType(types.findByCode("OTHER").orElseThrow());employers.saveAndFlush(e);verification(u,VerificationStatus.VERIFIED);return u; }
+    User candidate() { var u=user(Role.CANDIDATE);var c=new CandidateProfile();c.setUser(u);c.setFullName("Applicant");c.setCandidateType(CandidateType.TECH);c.setAvailability(Availability.AVAILABLE);candidates.saveAndFlush(c);verification(u,VerificationStatus.VERIFIED);return u; }
     Long cid(User u) { return candidates.findByUserId(u.getId()).orElseThrow().getId(); }
     String auth(User u) { return "Bearer "+jwt.issue(u.getId()); }
     String body(int months) throws Exception { return mapper.writeValueAsString(Map.of("title","Java role","description","Build useful services","location","Dhaka","candidateType","TECH","publicExpectations","Communicate clearly","privateExpectations","PRIVATE_EXPECTATIONS","expectedExperienceMonths",months)); }
@@ -125,4 +148,110 @@ class JobApplicationIntegrationTest {
         assertThatThrownBy(()->applications.saveAndFlush(duplicate)).isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         assertThat(applications.countByJobId(j)).isEqualTo(1);
     }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings={"NONE","PENDING","FAILED"})
+    void nonVerifiedUsersCannotPublishOrApply(String state) throws Exception {
+        var e=employer();var c=candidate();Long active=job(e);
+        Long draft=id(mvc.perform(post("/api/jobs").header("Authorization",auth(e)).contentType("application/json").content(body(6))).andExpect(status().isCreated()));
+        Long payment=id(mvc.perform(post("/api/jobs/"+draft+"/payment").header("Authorization",auth(e))).andExpect(status().isOk()));
+        var status=state.equals("NONE")?null:VerificationStatus.valueOf(state);
+        verification(e,status);verification(c,status);
+        mvc.perform(post("/api/jobs/"+draft+"/payment").header("Authorization",auth(e))).andExpect(status().isForbidden());
+        mvc.perform(post("/api/payments/"+payment+"/demo-success").header("Authorization",auth(e))).andExpect(status().isForbidden());
+        apply(c,active).andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("VERIFICATION_REQUIRED"));
+        assertThat(applications.countByJobId(active)).isZero();verifyNoInteractions(provider);
+        assertThat(notices.findByUserIdOrderByCreatedAtDescIdDesc(e.getId())).isEmpty();
+        assertThat(notices.findByUserIdOrderByCreatedAtDescIdDesc(c.getId())).isEmpty();
+        mvc.perform(get("/api/jobs/"+active).header("Authorization",auth(e))).andExpect(status().isOk());
+        mvc.perform(get("/api/candidates/me/jobs/"+active).header("Authorization",auth(c))).andExpect(status().isOk());
+        assertThat(jobs.findById(draft).orElseThrow().getStatus()).isEqualTo(JobStatus.DRAFT);
+    }
+    @Test void unavailableOnlyBlocksNewApplicationsAndStandaloneAssessmentIsForbidden() throws Exception {
+        var e=employer();var c=candidate();Long j=job(e),next=job(e);Long a=id(apply(c,j).andExpect(status().isCreated()));
+        mvc.perform(put("/api/candidates/me").header("Authorization",auth(c)).contentType("application/json")
+            .content("{\"fullName\":\"Updated applicant\",\"availability\":\"UNAVAILABLE\"}")).andExpect(status().isOk());
+        apply(c,next).andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("CANDIDATE_UNAVAILABLE"));
+        assertThat(applications.countByJobId(next)).isZero();
+        assertThat(applications.findById(a).orElseThrow().getStatus()).isEqualTo(ApplicationStatus.APPLIED);
+        mvc.perform(get("/api/candidates/me/jobs").header("Authorization",auth(c))).andExpect(status().isOk());
+        mvc.perform(get("/api/candidates/me/applications").header("Authorization",auth(c))).andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(1));
+        mvc.perform(post("/api/assessments/1/attempts").header("Authorization",auth(c))).andExpect(status().isForbidden()).andExpect(jsonPath("$.error").value("APPLICATION_REQUIRED"));
+        assertThat(notices.findByUserIdOrderByCreatedAtDescIdDesc(e.getId())).hasSize(1);
+    }
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({"true,true,false","true,false,false","false,true,false","false,false,false","true,true,true"})
+    void committedApplicationsEvaluateOnlyPresentInputsAndSurviveProviderFailure(boolean hasCv,boolean hasPortfolio,boolean fails) throws Exception {
+        var e=employer();var u=candidate();var c=candidates.findByUserId(u.getId()).orElseThrow();Long j=job(e);
+        if(hasCv) {var cv=new CandidateCv();cv.setCandidate(c);cv.setSummary("Backend developer");cvs.saveAndFlush(cv);}
+        if(hasPortfolio) {c.setPortfolioUrl("https://example.test/portfolio");candidates.saveAndFlush(c);}
+        when(provider.evaluateCv(any())).thenAnswer(call -> {
+            assertThat(applications.findByJobIdAndCandidateId(j,c.getId())).isPresent();
+            if(fails) throw new IllegalStateException("Mock provider 503/retry exhaustion");
+            return new com.marketplace.ai.AiEvaluationDtos.CvEvaluationResult(0.8);
+        });
+        when(provider.evaluatePortfolio(any())).thenAnswer(call -> {
+            assertThat(applications.findByJobIdAndCandidateId(j,c.getId())).isPresent();
+            if(fails) throw new IllegalStateException("Mock provider 503/retry exhaustion");
+            return new com.marketplace.ai.AiEvaluationDtos.PortfolioEvaluationResult(0.6);
+        });
+        Long a=id(apply(u,j).andExpect(status().isCreated()));
+        await().atMost(java.time.Duration.ofSeconds(10)).untilAsserted(() -> {
+            var saved=applications.findById(a).orElseThrow();
+            assertThat(saved.getCvAttempt()).isNotNull();assertThat(saved.getCvAttempt().getAttemptedAt()).isNotNull();
+            assertThat(saved.getPortfolioAttempt()).isNotNull();assertThat(saved.getPortfolioAttempt().getAttemptedAt()).isNotNull();
+        });
+        var saved=applications.findById(a).orElseThrow();
+        if(hasCv && !fails) assertThat(saved.getCvScore()).isEqualByComparingTo("0.8");else assertThat(saved.getCvScore()).isNull();
+        if(hasPortfolio && !fails) assertThat(saved.getPortfolioScore()).isEqualByComparingTo("0.6");else assertThat(saved.getPortfolioScore()).isNull();
+        verify(provider,times(hasCv?1:0)).evaluateCv(any());verify(provider,times(hasPortfolio?1:0)).evaluatePortfolio(any());
+        apply(u,j).andExpect(status().isConflict());
+        mvc.perform(get("/api/candidates/me/applications").header("Authorization",auth(u))).andExpect(jsonPath("$[0].id").value(a));
+        mvc.perform(get("/api/jobs/"+j+"/applications").header("Authorization",auth(e))).andExpect(jsonPath("$[0].id").value(a));
+        assertThat(applications.countByJobId(j)).isEqualTo(1);assertThat(sessions.findByJobApplicationId(a)).isEmpty();
+        assertThat(notices.findByUserIdOrderByCreatedAtDescIdDesc(e.getId())).singleElement().satisfies(n -> assertThat(n.getTitle()).isEqualTo("New application received"));
+        assertThat(notices.findByUserIdOrderByCreatedAtDescIdDesc(u.getId())).singleElement().satisfies(n -> assertThat(n.getTitle()).isEqualTo("Assessment available"));
+    }
+    @Test void notificationsArePersistentOrderedOwnedAndOnlyRealStatusChangesNotify() throws Exception {
+        var e=employer();var c=candidate();var outsider=candidate();Long j=job(e),a=id(apply(c,j).andExpect(status().isCreated()));
+        reviewStatus(e,j,a,"APPLIED").andExpect(status().isOk());
+        assertThat(notices.findByUserIdOrderByCreatedAtDescIdDesc(c.getId())).hasSize(1);
+        reviewStatus(e,j,a,"UNDER_REVIEW").andExpect(status().isOk());reviewStatus(e,j,a,"UNDER_REVIEW").andExpect(status().isOk());
+        var candidateNotices=notices.findByUserIdOrderByCreatedAtDescIdDesc(c.getId());assertThat(candidateNotices).hasSize(2);
+        Long employerNotice=notices.findByUserIdOrderByCreatedAtDescIdDesc(e.getId()).getFirst().getId();
+        for(int i=0;i<2;i++) {
+            mvc.perform(get("/api/notifications/me").header("Authorization",auth(c))).andExpect(jsonPath("$.length()").value(2)).andExpect(jsonPath("$[0].title").value("Application status updated"));
+            mvc.perform(get("/api/notifications/me").header("Authorization",auth(e))).andExpect(jsonPath("$.length()").value(1)).andExpect(jsonPath("$[0].id").value(employerNotice));
+        }
+        mvc.perform(get("/api/notifications/me").header("Authorization",auth(outsider))).andExpect(jsonPath("$").isEmpty());
+        mvc.perform(post("/api/notifications/"+employerNotice+"/read").header("Authorization",auth(c))).andExpect(status().isNotFound());
+        mvc.perform(post("/api/notifications/"+candidateNotices.getFirst().getId()+"/read").header("Authorization",auth(e))).andExpect(status().isNotFound());
+        mvc.perform(post("/api/notifications/"+employerNotice+"/read").header("Authorization",auth(e))).andExpect(status().isOk());
+        assertThat(notices.countByUserIdAndReadAtIsNull(e.getId())).isZero();
+        mvc.perform(post("/api/notifications/read-all").header("Authorization",auth(c))).andExpect(status().isOk());
+        mvc.perform(get("/api/notifications/me").header("Authorization",auth(c))).andExpect(jsonPath("$[0].readAt").isNotEmpty()).andExpect(jsonPath("$[1].readAt").isNotEmpty());
+    }
+    @Test void notificationDeliveryFailureDoesNotDestroyApplication() throws Exception {
+        var e=employer();var c=candidate();Long j=job(e);
+        doThrow(new IllegalStateException("Mock delivery failure")).when(notificationService).deliver(any());
+        Long a=id(apply(c,j).andExpect(status().isCreated()));
+        assertThat(applications.findById(a)).isPresent();
+        mvc.perform(get("/api/jobs/"+j+"/applications").header("Authorization",auth(e))).andExpect(jsonPath("$[0].id").value(a));
+    }
+
+    @Test void verificationDecisionsNotifyCandidateAndEmployerWithoutDocumentContents() throws Exception {
+        var admin=user(Role.ADMIN);
+        for(var owner:List.of(candidate(),employer())) {
+            for(var decision:List.of("VERIFIED","FAILED")) {
+                verification(owner,VerificationStatus.PENDING);
+                var record=records.forUser(owner.getId()).getFirst();
+                mvc.perform(post("/api/admin/verification-submissions/"+record.getId()+"/review").header("Authorization",auth(admin))
+                    .contentType("application/json").content("{\"status\":\""+decision+"\",\"notes\":\"PRIVATE_REVIEW_NOTE\"}")).andExpect(status().isOk());
+                var latest=notices.findByUserIdOrderByCreatedAtDescIdDesc(owner.getId()).getFirst();
+                assertThat(latest.getTitle()).isEqualTo("Verification result");
+                assertThat(latest.getMessage()).contains(decision.equals("VERIFIED")?"approved":"rejected").doesNotContain("PRIVATE_REVIEW_NOTE");
+            }
+            assertThat(notices.findByUserIdOrderByCreatedAtDescIdDesc(owner.getId())).hasSize(2);
+        }
+    }
+
 }

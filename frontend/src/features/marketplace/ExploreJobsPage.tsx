@@ -1,10 +1,11 @@
 import { useTradeText } from '../trade/useTradeText'
-import { useCallback, useState, type FormEvent } from 'react'
+import { useCallback, useRef, useState, type FormEvent } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { api, apiFailure } from '../../services/api'
 import type { CompanyType } from '../company-types/CompanyTypeSelector'
-import { experience, jobDiscovery, type PublicJob } from './api'
+import { experience, jobDiscovery, marketplace, type PublicJob } from './api'
 import { useLoad, words } from './useLoad'
+import { Modal } from '../../components/Modal'
 import { Workspace, LoadState, Empty, Feedback } from './shared'
 
 const loadTypes = () => api.get<CompanyType[]>('/company-types').then(r => r.data)
@@ -14,20 +15,45 @@ function ApplyAction({ job, onApplied }: { job: PublicJob; onApplied: () => void
   const tr = useTradeText()
 
   const [busy, setBusy] = useState(false), [error, setError] = useState('')
-  async function apply() {
-    if (busy) return
-    setBusy(true); setError('')
-    try { await jobDiscovery.apply(job.id); onApplied() }
-    catch (e) {
+  const [missing, setMissing] = useState<string[] | null>(null)
+  const pending = useRef(false)
+  async function apply(confirm = false) {
+    if (pending.current) return
+    pending.current = true; setBusy(true); setError('')
+    try {
+      const profile = await marketplace.profile()
+      if (profile.verificationStatus !== 'VERIFIED') {
+        setMissing(null); setError('Candidate verification is required before applying for jobs.'); return
+      }
+      if (profile.availability !== 'AVAILABLE') {
+        setMissing(null); setError('You are currently marked unavailable. Change your availability before applying for jobs.'); return
+      }
+      const latest = await jobDiscovery.detail(String(job.id))
+      if (latest.hasApplied) { setMissing(null); onApplied(); return }
+      const absent: string[] = []
+      if (![profile.fullName, profile.phone, profile.location, profile.bio, profile.experienceSummary, profile.profilePhotoUrl,
+        profile.candidateType === 'TRADE' ? profile.primaryTradeCategory : profile.educationSummary].every(value => value?.trim())) absent.push('Profile details')
+      if (!profile.skills.length) absent.push('Skills')
+      if (!profile.cvOriginalName && !profile.hasBuiltCv) absent.push('CV')
+      if (!profile.portfolioUrl?.trim()) absent.push('Portfolio')
+      // Reconfirm if profile changes introduce additional missing items while the dialog is open.
+      if (!confirm || missing === null || absent.some(item => !missing.includes(item))) { setMissing(absent); return }
+      await jobDiscovery.apply(job.id); setMissing(null); onApplied()
+    } catch (e) {
       const failure = apiFailure(e)
-      setError(failure.message)
-      // Another tab may already have applied; refresh the server's authoritative state.
+      setError(failure.message); setMissing(null)
       if (failure.error === 'ALREADY_APPLIED') onApplied()
-    } finally { setBusy(false) }
+    } finally { pending.current = false; setBusy(false) }
   }
   return <div><Feedback error={error} />{job.hasApplied && job.applicationStatus
     ? <span role="status" className="badge bg-indigo-50 text-indigo-800">{tr("Application:")}{' '}{tr(words(job.applicationStatus))}</span>
-    : <button className="button-primary" disabled={busy || job.status !== 'ACTIVE'} onClick={() => void apply()} aria-label={`${tr('Apply')} · ${job.title}`}>{busy ? tr("Applying…") : job.status === 'ACTIVE' ? tr("Apply") : tr("Job closed")}</button>}</div>
+    : <button className="button-primary" disabled={busy || job.status !== 'ACTIVE'} onClick={() => void apply()} aria-label={`${tr('Apply')} · ${job.title}`}>{busy ? tr("Please wait…") : job.status === 'ACTIVE' ? tr("Apply") : tr("Job closed")}</button>}
+    {missing !== null && <Modal title={tr(missing.length ? 'Your application profile is incomplete.' : 'Confirm application?')} close={() => { if (!pending.current) setMissing(null) }}>
+      <p className="mb-4 break-words font-semibold">{job.title}</p>
+      {missing.length > 0 && <><p className="mb-3">{tr('Missing:')} {missing.map(item => tr(item)).join(', ')}</p><p className="mb-5 text-slate-600">{tr('Applying without these may reduce your chance of getting hired. Do you still want to apply?')}</p></>}
+      <div className="flex flex-wrap gap-3"><button className="button-secondary" disabled={busy} onClick={() => setMissing(null)}>{tr('Cancel')}</button><button className="button-primary" disabled={busy} onClick={() => void apply(true)}>{busy ? tr('Applying…') : tr(missing.length ? 'Apply Anyway' : 'Confirm application')}</button></div>
+    </Modal>}
+  </div>
 }
 
 function Filters({ initial, onSearch }: { initial: URLSearchParams; onSearch: (params: URLSearchParams) => void }) {
