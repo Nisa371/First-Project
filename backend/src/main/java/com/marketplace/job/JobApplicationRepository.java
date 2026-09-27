@@ -17,6 +17,32 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication,L
     Optional<JobApplication> findByIdAndJobId(Long id,Long jobId);
     List<JobApplication> findByCandidateUserIdOrderByCreatedAtDescIdDesc(Long userId);
     List<JobApplication> findByJobIdOrderByCreatedAtDescIdDesc(Long jobId);
+    interface ApplicantSummary {
+        Long getId();
+        java.time.Instant getAppliedAt();
+        int getExperienceMonths();
+        java.math.BigDecimal getCvScore();
+        java.math.BigDecimal getPortfolioScore();
+        java.math.BigDecimal getAssessmentScore();
+        com.marketplace.interview.AssessmentSession.Status getAssessmentStatus();
+    }
+    @Query("""
+        select a.id as id, a.createdAt as appliedAt, c.totalExperienceMonths as experienceMonths,
+            a.cvScore as cvScore, a.portfolioScore as portfolioScore, a.assessmentScore as assessmentScore,
+            s.status as assessmentStatus
+        from JobApplication a join a.candidate c
+        left join AssessmentSession s on s.jobApplication.id = a.id
+        where a.job.id = :jobId
+            and (:status is null or a.status = :status)
+            and (:assessment is null or s.status = :assessment
+                or (s.id is null and :notStarted = true))
+            and (:minExperience is null or c.totalExperienceMonths >= :minExperience)
+            and (:search is null or lower(c.fullName) like :search escape '!')
+        """)
+    List<ApplicantSummary> applicantSummaries(Long jobId, ApplicationStatus status,
+        com.marketplace.interview.AssessmentSession.Status assessment, boolean notStarted, Integer minExperience, String search);
+    @EntityGraph(attributePaths={"candidate", "job"})
+    List<JobApplication> findByJobIdAndIdIn(Long jobId, List<Long> ids);
     long countByJobId(Long jobId);
     long countByJobIdAndStatus(Long jobId,ApplicationStatus status);
     @Query("select a.job.id from JobApplication a where a.id=:id and a.candidate.user.id=:userId")

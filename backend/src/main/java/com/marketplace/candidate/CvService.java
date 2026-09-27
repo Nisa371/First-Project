@@ -43,13 +43,20 @@ public class CvService {
         entityManager.refresh(c, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         if(c.getCandidateType()!=CandidateType.TECH) throw new ApiException(403,"TECH_ONLY","CV upload is available for TECH candidates.");
         String name=file.getOriginalFilename();
-        if(file.isEmpty() || file.getSize()>5*1024*1024 || name==null || name.length()>180
-            || name.contains("/") || name.contains("\\") || name.chars().anyMatch(ch -> ch<32 || ch==127)
-            || !name.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf") || !"application/pdf".equals(file.getContentType()))
-            throw new ApiException(400,"INVALID_CV","Choose a PDF file up to 5 MB with a simple filename.");
+        if (file.isEmpty()) throw new ApiException(400,"INVALID_CV","This file is empty. Please upload a PDF with content.");
+        if (file.getSize()>5*1024*1024) throw new ApiException(400,"INVALID_CV","This file exceeds the allowed size of 5 MB.");
+        if (name==null || !name.toLowerCase(java.util.Locale.ROOT).endsWith(".pdf") || !"application/pdf".equals(file.getContentType()))
+            throw new ApiException(400,"INVALID_CV","Please upload a PDF file.");
+        if (name.length()>180 || name.contains("/") || name.contains("\\") || name.chars().anyMatch(ch -> ch<32 || ch==127))
+            throw new ApiException(400,"INVALID_CV","Please use a simple PDF filename of up to 180 characters.");
         byte[] bytes=file.getBytes();
         if(bytes.length<8 || !new String(bytes,0,5,StandardCharsets.US_ASCII).equals("%PDF-"))
-            throw new ApiException(400,"INVALID_CV","The file must contain a PDF document.");
+            throw new ApiException(400,"INVALID_CV","The PDF could not be processed. Please try another file.");
+        try (var document = org.apache.pdfbox.Loader.loadPDF(bytes)) {
+            if (document.getNumberOfPages() == 0) throw new IOException("Empty PDF");
+        } catch (IOException | RuntimeException ex) {
+            throw new ApiException(400,"INVALID_CV","The PDF could not be processed. Please try another file.");
+        }
         String previous=c.getCvStoredName(); String stored=UUID.randomUUID()+".pdf";
         Files.createDirectories(root);
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
@@ -62,10 +69,10 @@ public class CvService {
         });
         Files.write(path(stored),bytes,StandardOpenOption.CREATE_NEW);
         c.setCvStoredName(stored); c.setCvOriginalName(name); c.setCvContentType("application/pdf");
-        String extracted = content.extract(bytes);
         candidates.saveAndFlush(c);
         events.publishEvent(new CandidateEvaluationContentChanged(c.getId(), true, false));
-        return new UploadResult(profiles.view(c), extracted == null
+        var profile = profiles.view(c);
+        return new UploadResult(profile, !profile.cvAiReady()
             ? "CV uploaded, but its text could not be extracted. This PDF cannot be used for AI evaluation. Please upload a text-based PDF or complete your CV using the CV Builder."
             : null);
     }

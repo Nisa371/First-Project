@@ -52,7 +52,7 @@ export function ApplicationAssessmentPage() {
     } finally { pending.current = false; setBusy(false) }
   }
   return <Workspace title={s?.jobTitle ?? tr("Job assessment")} subtitle={tr("A job-specific interview. Answer in your own words; typing is always available.")}>
-    <Link className="mb-5 inline-block font-semibold text-indigo-700" to="/candidate/applications">{tr("← My applications")}</Link>
+    <Link className="mb-5 inline-block font-semibold text-indigo-700" to={`/candidate/applications/${id}`}>{tr("← Application details")}</Link>
     <LoadState {...state} /><Feedback error={error} />
     {s && <div className="mx-auto max-w-3xl space-y-6" aria-busy={busy}>
       <section className="surface"><div className="flex flex-wrap items-center justify-between gap-3"><span className="badge">{tr(assessmentLabel(s.status))}</span><span className="text-sm text-slate-600">{s.currentTurn} / {s.maxTurns}{' '}{tr("answers")}</span></div>

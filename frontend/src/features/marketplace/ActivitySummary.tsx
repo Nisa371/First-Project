@@ -11,13 +11,13 @@ export function ActivitySummary() {
 
   const { user } = useAuth(); const candidate = user?.role === 'CANDIDATE'; const root = `/${user?.role.toLowerCase()}`
   const loader = useCallback(async () => {
-    const [placements, notifications, activity] = await Promise.all([managed.placements(), managed.notifications(), candidate ? api.get<{ id: number }[]>('/referrals').then(r => r.data) : managed.replacements()])
+    const [placements, notifications, activity] = await Promise.all([managed.placements(), managed.unreadCount(), candidate ? api.get<{ id: number }[]>('/referrals').then(r => r.data) : managed.replacements()])
     return { placements, notifications, activity }
   }, [candidate])
   const state = useLoad(loader)
   return <section className="mb-6"><LoadState {...state} />{state.data && <div className="grid gap-4 sm:grid-cols-3">{[
     ['placements', tr("Active placements"), state.data.placements.filter(p => p.status === 'ACTIVE').length],
     [candidate ? 'training' : 'replacements', candidate ? tr("Training referrals") : tr("Replacement requests"), state.data.activity.length],
-    ['notifications', tr("Unread updates"), state.data.notifications.filter(n => !n.readAt).length],
+    ['notifications', tr("Unread updates"), state.data.notifications],
   ].map(([path, label, count]) => <Link key={path} to={`${root}/${path}`} className="surface hover:border-indigo-300"><p className="text-sm text-slate-600">{label}</p><p className="mt-3 text-3xl font-bold">{count}</p><p className="mt-3 text-sm font-semibold text-indigo-700">{tr("View details →")}</p></Link>)}</div>}</section>
 }

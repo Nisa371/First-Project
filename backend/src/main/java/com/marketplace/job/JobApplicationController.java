@@ -19,8 +19,9 @@ public class JobApplicationController {
     @PostMapping("/api/jobs/{id}/apply") @ResponseStatus(HttpStatus.CREATED)
     public ApplicationView apply(@PathVariable Long id) { return service.apply(id); }
     @GetMapping("/api/candidates/me/applications") public List<ApplicationView> mine() { return service.mine(); }
+    @GetMapping("/api/candidates/me/applications/{id}") public ApplicationView mine(@PathVariable Long id) { return service.mine(id); }
     @PatchMapping("/api/applications/{id}/withdraw") public ApplicationView withdraw(@PathVariable Long id) { return service.withdraw(id); }
-    @GetMapping("/api/jobs/{jobId}/applications") public List<Applicant> applicants(@PathVariable Long jobId) { return service.applicants(jobId); }
+    @GetMapping("/api/jobs/{jobId}/applications") public ApplicantPage applicants(@PathVariable Long jobId, @Valid @ModelAttribute ApplicantSearch search) { return service.applicants(jobId,search); }
     @GetMapping("/api/jobs/{jobId}/applications/{id}") public Applicant applicant(@PathVariable Long jobId,@PathVariable Long id) { return service.applicant(jobId,id); }
     @PatchMapping("/api/jobs/{jobId}/applications/{id}/status")
     public Applicant status(@PathVariable Long jobId,@PathVariable Long id,@Valid @RequestBody StatusRequest input) { return service.status(jobId,id,input.status()); }

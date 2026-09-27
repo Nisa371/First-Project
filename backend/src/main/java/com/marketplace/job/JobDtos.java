@@ -23,6 +23,19 @@ public final class JobDtos {
         }
     }
     public record JobPage(java.util.List<PublicJob> content, long totalElements, int page, int size, int totalPages) {}
+    public record ApplicantSearch(ApplicationStatus status,
+        com.marketplace.interview.AssessmentSession.Status assessment,
+        @DecimalMin("0") java.math.BigDecimal minScore, @Min(0) Integer minExperience,
+        @Size(max=200) String search, @Min(0) Integer page, @Min(1) @Max(50) Integer size,
+        @Pattern(regexp="scoreDesc|scoreAsc|newest|oldest|experienceDesc|experienceAsc") String sort) {
+        public ApplicantSearch {
+            page = page == null ? 0 : page;
+            size = size == null ? 20 : size;
+            sort = sort == null ? "scoreDesc" : sort;
+        }
+    }
+    public record ApplicantPage(java.util.List<Applicant> content, long totalElements, long totalApplicants,
+        int page, int size, int totalPages) {}
     public record ApplicationView(Long id, PublicJob job, ApplicationStatus status, Instant appliedAt, Instant updatedAt, String assessmentStatus) {}
     public record Applicant(Long id, Long jobId, ApplicationStatus status, Instant appliedAt, Instant updatedAt,
         com.marketplace.candidate.CandidateDtos.CandidateCard candidate,

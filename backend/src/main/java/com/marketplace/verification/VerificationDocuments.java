@@ -71,7 +71,14 @@ public class VerificationDocuments {
         Files.write(path(stored),bytes,StandardOpenOption.CREATE_NEW);
         record.setStoredName(stored);record.setOriginalName(name);record.setContentType(mime);record.setFileSize(file.getSize());
         // Replacements are new submissions; older files and decisions remain private history.
-        return checklist.document(records.saveAndFlush(record));
+        records.saveAndFlush(record);
+        String ownerName=owner.getRole()==Role.CANDIDATE?record.getCandidate().getFullName():
+            employers.findByUserId(owner.getId()).orElseThrow(VerificationChecklist::missing).getCompanyName();
+        String title=owner.getRole()==Role.CANDIDATE?"Candidate verification submitted":"Employer verification submitted";
+        String message=ownerName+" submitted "+requirement.getName()+" for review (submission #"+record.getId()+").";
+        users.findByRoleAndAccountStatus(Role.ADMIN,AccountStatus.ACTIVE).forEach(admin ->
+            notifications.afterCommit(admin.getId(),title,message));
+        return checklist.document(record);
     }
     @PreAuthorize("hasAnyRole('CANDIDATE','EMPLOYER','ADMIN')")
     @Transactional(readOnly=true)

@@ -25,7 +25,7 @@ public class CandidateService {
     private final CurrentAccount current;
     private final CandidateProfileRepository candidates;
     private final CandidateSkillRepository candidateSkills;
-    private final CandidateCvRepository builtCvs;
+    private final CvEvaluationContent cvContent;
     private final SkillRepository skills;
     private final VerificationChecklist verifications;
     private final EvaluationRepository evaluations;
@@ -84,9 +84,10 @@ public class CandidateService {
         return evaluations.findByAttemptCandidateIdAndReleasedTrue(id).stream().map(e -> new ResultView(e.getScore(), e.getRecommendation().name())).toList();
     }
     public ProfileView view(CandidateProfile c) {
+        var content = cvContent.forCandidate(c);
         return new ProfileView(c.getId(),c.getCandidateType(),c.getFullName(),c.getPhone(),c.getLocation(),c.getBio(),
             c.getEducationSummary(),c.getExperienceSummary(),c.getTotalExperienceMonths(),c.getAvailability(),c.getPrimaryTradeCategory(),
-            c.getPortfolioUrl(),c.getCvOriginalName(),skillViews(c.getId()),verification(c.getId()),results(c.getId()),CandidatePhotoService.url(c),builtCvs.findByCandidateId(c.getId()).map(CandidateCv::hasContent).orElse(false));
+            c.getPortfolioUrl(),c.getCvOriginalName(),skillViews(c.getId()),verification(c.getId()),results(c.getId()),CandidatePhotoService.url(c),content.structured() != null, content.usable());
     }
     public CandidateCard card(CandidateProfile c) {
         return new CandidateCard(c.getId(),c.getCandidateType(),c.getFullName(),c.getLocation(),c.getBio(),c.getExperienceSummary(),c.getTotalExperienceMonths(),

@@ -15,7 +15,14 @@ api.interceptors.request.use(config => {
   return config
 })
 
-api.interceptors.response.use(response => response, error => {
+api.interceptors.response.use(response => {
+  const { method, url, headers } = response.config
+  if (headers.Authorization === `Bearer ${session.token()}` &&
+      (url === '/notifications/me' || ['post', 'put', 'patch', 'delete'].includes(method ?? ''))) {
+    window.dispatchEvent(new Event('notifications-refresh'))
+  }
+  return response
+}, error => {
   if (axios.isAxiosError(error) && error.config?.headers.Authorization
       && (error.response?.status === 401 ||
           (error.response?.status === 403 && error.response.data?.error === 'ACCOUNT_INACTIVE'))) {

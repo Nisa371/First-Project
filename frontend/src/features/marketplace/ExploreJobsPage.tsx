@@ -1,3 +1,4 @@
+import { candidateReadiness } from './profileReadiness'
 import { useTradeText } from '../trade/useTradeText'
 import { useCallback, useRef, useState, type FormEvent } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
@@ -15,27 +16,23 @@ function ApplyAction({ job, onApplied }: { job: PublicJob; onApplied: () => void
   const tr = useTradeText()
 
   const [busy, setBusy] = useState(false), [error, setError] = useState('')
+  const [blocked, setBlocked] = useState<'verification' | 'availability' | null>(null)
   const [missing, setMissing] = useState<string[] | null>(null)
   const pending = useRef(false)
   async function apply(confirm = false) {
     if (pending.current) return
-    pending.current = true; setBusy(true); setError('')
+    pending.current = true; setBusy(true); setError(''); setBlocked(null)
     try {
       const profile = await marketplace.profile()
       if (profile.verificationStatus !== 'VERIFIED') {
-        setMissing(null); setError('Candidate verification is required before applying for jobs.'); return
+        setBlocked('verification'); setMissing(null); setError('Candidate verification is required before applying for jobs.'); return
       }
       if (profile.availability !== 'AVAILABLE') {
-        setMissing(null); setError('You are currently marked unavailable. Change your availability before applying for jobs.'); return
+        setBlocked('availability'); setMissing(null); setError('You are currently marked unavailable. Change your availability before applying for jobs.'); return
       }
       const latest = await jobDiscovery.detail(String(job.id))
       if (latest.hasApplied) { setMissing(null); onApplied(); return }
-      const absent: string[] = []
-      if (![profile.fullName, profile.phone, profile.location, profile.bio, profile.experienceSummary, profile.profilePhotoUrl,
-        profile.candidateType === 'TRADE' ? profile.primaryTradeCategory : profile.educationSummary].every(value => value?.trim())) absent.push('Profile details')
-      if (!profile.skills.length) absent.push('Skills')
-      if (!profile.cvOriginalName && !profile.hasBuiltCv) absent.push('CV')
-      if (!profile.portfolioUrl?.trim()) absent.push('Portfolio')
+      const absent = candidateReadiness(profile).warnings
       // Reconfirm if profile changes introduce additional missing items while the dialog is open.
       if (!confirm || missing === null || absent.some(item => !missing.includes(item))) { setMissing(absent); return }
       await jobDiscovery.apply(job.id); setMissing(null); onApplied()
@@ -45,7 +42,7 @@ function ApplyAction({ job, onApplied }: { job: PublicJob; onApplied: () => void
       if (failure.error === 'ALREADY_APPLIED') onApplied()
     } finally { pending.current = false; setBusy(false) }
   }
-  return <div><Feedback error={error} />{job.hasApplied && job.applicationStatus
+  return <div><Feedback error={error} />{blocked && <Link className="mb-4 inline-block text-sm font-semibold text-indigo-700 underline" to={blocked === 'verification' ? '/candidate/verification' : '/candidate/profile'}>{blocked === 'verification' ? tr('Verification') : tr('Edit skills and availability →')}</Link>}{job.hasApplied && job.applicationStatus
     ? <span role="status" className="badge bg-indigo-50 text-indigo-800">{tr("Application:")}{' '}{tr(words(job.applicationStatus))}</span>
     : <button className="button-primary" disabled={busy || job.status !== 'ACTIVE'} onClick={() => void apply()} aria-label={`${tr('Apply')} · ${job.title}`}>{busy ? tr("Please wait…") : job.status === 'ACTIVE' ? tr("Apply") : tr("Job closed")}</button>}
     {missing !== null && <Modal title={tr(missing.length ? 'Your application profile is incomplete.' : 'Confirm application?')} close={() => { if (!pending.current) setMissing(null) }}>

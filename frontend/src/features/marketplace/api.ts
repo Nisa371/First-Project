@@ -2,7 +2,7 @@ import { api } from '../../services/api'
 export interface Skill { id: number; name: string; category: string; proficiencyLevel?: string }
 export interface Result { score: number; recommendation: string }
 export interface Candidate { profilePhotoUrl: string | null; id: number; candidateType: 'TECH' | 'TRADE'; fullName: string; location: string; bio: string; experienceSummary: string; totalExperienceMonths: number; availability: 'AVAILABLE' | 'UNAVAILABLE'; primaryTradeCategory: string; portfolioUrl: string; skills: Skill[]; verificationStatus: string; releasedResults: Result[]; hasCv: boolean }
-export interface Profile extends Candidate { hasBuiltCv: boolean; phone: string; educationSummary: string; cvOriginalName: string | null }
+export interface Profile extends Candidate { hasBuiltCv: boolean; cvAiReady: boolean; phone: string; educationSummary: string; cvOriginalName: string | null }
 export interface Company { companyName: string; companyTypeId: number | null; companyTypeName: string | null; companyTypeOther: boolean; companyTypeActive: boolean; customCompanyType: string | null; contactPhone: string; address: string; description: string }
 export interface Job { id: number; title: string; description: string; location: string; candidateType: 'TECH' | 'TRADE'; requiredSkillId: number | null; requiredSkillName: string | null; status: 'ACTIVE' | 'CLOSED' | 'DRAFT'; shortlistCount: number; applicationCount: number; publicExpectations: string | null; privateExpectations: string | null; expectedExperienceMonths: number; createdAt: string }
 export interface SearchPage { content: Candidate[]; totalElements: number; page: number; totalPages: number }
@@ -24,6 +24,7 @@ export interface PublicJob { hasApplied: boolean; companyTypeId: number | null; 
 export interface Application { assessmentStatus: string; id: number; job: PublicJob; status: ApplicationStatus; appliedAt: string; updatedAt: string }
 export interface EvaluationWeights { cvWeight: number; portfolioWeight: number; experienceWeight: number; assessmentWeight: number }
 export interface EvaluationAttempt { status: 'NOT_EVALUATED' | 'COMPLETED' | 'FAILED' | 'UNAVAILABLE'; failureCode: string | null; attemptedAt: string | null; evaluatedAt: string | null }
+export interface ApplicantPage { content: Applicant[]; totalElements: number; totalApplicants: number; page: number; size: number; totalPages: number }
 export interface Applicant { assessmentStatus: string; cvEvaluation: EvaluationAttempt; portfolioEvaluation: EvaluationAttempt; cvScore: number | null; portfolioScore: number | null; experienceScore: number; assessmentScore: number | null; finalScore: number; evaluationStatus: 'NOT_EVALUATED' | 'PARTIALLY_EVALUATED' | 'EVALUATED'; id: number; jobId: number; candidate: Candidate; status: ApplicationStatus; appliedAt: string; updatedAt: string }
 export const experience = (months: number) => {
   if (months === 0) return 'No experience required'

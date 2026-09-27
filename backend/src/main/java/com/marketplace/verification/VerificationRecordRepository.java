@@ -18,6 +18,35 @@ public interface VerificationRecordRepository extends JpaRepository<Verification
         and (:companyId is null or exists (select e.id from EmployerProfile e where e.user.id = coalesce(o.id,cu.id) and e.companyType.id = :companyId))
         """)
     org.springframework.data.domain.Page<VerificationRecord> reviewPage(String status, String role, Long companyId, org.springframework.data.domain.Pageable pageable);
+    // Mirrors checklist applicability/latest semantics without loading submission history.
+    @org.springframework.data.jpa.repository.Query("""
+        select count(v) from VerificationRecord v
+        left join v.candidate c left join c.user cu left join v.owner o left join v.requirement vr
+        where coalesce(o.role, cu.role) = :role
+          and v.status in (com.marketplace.verification.VerificationStatus.PENDING, com.marketplace.verification.VerificationStatus.IN_REVIEW)
+          and exists (
+            select r.id from VerificationRequirement r
+            where r.active = true
+              and (r.id = vr.id or (vr.id is null and c.id is not null and r.code = 'CANDIDATE_NID'))
+              and ((coalesce(o.role, cu.role) = com.marketplace.user.Role.CANDIDATE
+                    and r.targetType = com.marketplace.verification.VerificationTarget.CANDIDATE and r.companyType is null)
+                or (coalesce(o.role, cu.role) = com.marketplace.user.Role.EMPLOYER and exists (
+                    select e.id from EmployerProfile e left join e.companyType t
+                    where e.user.id = coalesce(o.id, cu.id)
+                      and (r.companyType is null or r.companyType.id = t.id)
+                      and (r.targetType = com.marketplace.verification.VerificationTarget.EMPLOYER
+                        or (r.targetType = com.marketplace.verification.VerificationTarget.HOUSEHOLD_EMPLOYER and t.code = 'HOUSEHOLD')
+                        or (r.targetType = com.marketplace.verification.VerificationTarget.COMPANY_EMPLOYER and (t.code is null or t.code <> 'HOUSEHOLD')))))))
+          and not exists (
+            select newer.id from VerificationRecord newer
+            left join newer.candidate nc left join nc.user nu left join newer.requirement nr
+            where (newer.owner.id = coalesce(o.id, cu.id) or nu.id = coalesce(o.id, cu.id))
+              and (nr.id = vr.id
+                or (vr.id is null and (nr.id is null or nr.code = 'CANDIDATE_NID'))
+                or (vr.code = 'CANDIDATE_NID' and nr.id is null and nc.id is not null))
+              and (newer.submittedAt > v.submittedAt or (newer.submittedAt = v.submittedAt and newer.id > v.id)))
+        """)
+    long countAwaitingReview(com.marketplace.user.Role role);
     List<VerificationRecord> findByRequirementIsNull();
     List<VerificationRecord> findAllByOrderBySubmittedAtDescIdDesc();
     List<VerificationRecord> findByCandidateIdOrderBySubmittedAtDescIdDesc(Long candidateId);

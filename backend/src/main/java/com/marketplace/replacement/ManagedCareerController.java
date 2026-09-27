@@ -32,6 +32,7 @@ public class ManagedCareerController {
     @PostMapping("/api/replacements/{id}/cancel") public ReplacementQueueManager.View cancel(@PathVariable Long id) { return replacements.cancel(id); }
     @PostMapping("/api/replacements/{id}/retry") public ReplacementQueueManager.View retry(@PathVariable Long id) { return replacements.retry(id); }
     @GetMapping("/api/notifications/me") public List<NotificationService.View> notifications() { return notifications.mine(); }
+    @GetMapping("/api/notifications/unread-count") public long unreadCount() { return notifications.unreadCount(); }
     @PostMapping("/api/notifications/{id}/read") public void read(@PathVariable Long id) { notifications.read(id); }
     @PostMapping("/api/notifications/read-all") public void readAll() { notifications.readAll(); }
 }

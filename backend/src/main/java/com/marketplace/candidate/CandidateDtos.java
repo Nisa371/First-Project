@@ -18,7 +18,7 @@ public final class CandidateDtos {
     public record ProfileView(Long id, CandidateType candidateType, String fullName, String phone,
         String location, String bio, String educationSummary, String experienceSummary, int totalExperienceMonths,
         Availability availability, String primaryTradeCategory, String portfolioUrl, String cvOriginalName,
-        List<SkillView> skills, String verificationStatus, List<ResultView> releasedResults, String profilePhotoUrl, boolean hasBuiltCv) {}
+        List<SkillView> skills, String verificationStatus, List<ResultView> releasedResults, String profilePhotoUrl, boolean hasBuiltCv, boolean cvAiReady) {}
     public record CandidateCard(Long id, CandidateType candidateType, String fullName, String location,
         String bio, String experienceSummary, int totalExperienceMonths, Availability availability, String primaryTradeCategory,
         String portfolioUrl, boolean hasCv, List<SkillView> skills, String verificationStatus,

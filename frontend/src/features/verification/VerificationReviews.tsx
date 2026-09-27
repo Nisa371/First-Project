@@ -5,8 +5,8 @@ import { Modal } from '../../components/Modal'
 import { Field, Feedback, LoadState, Empty } from '../marketplace/shared'
 import { documentLabel, downloadDocument, type Review } from './api'
 const loadTypes = () => api.get<{ id: number; name: string }[]>('/admin/company-types').then(r => r.data)
-export function VerificationReviews() {
-  const [status, setStatus] = useState('PENDING'), [role, setRole] = useState(''), [company, setCompany] = useState('')
+export function VerificationReviews({ initialRole = '', changed }: { initialRole?: string; changed?: () => void }) {
+  const [status, setStatus] = useState('PENDING'), [role, setRole] = useState(initialRole), [company, setCompany] = useState('')
   const [page, setPage] = useState(0)
   const loader = useCallback(() => api.get<{ content: Review[]; totalElements: number; totalPages: number }>('/admin/verification-submissions/page', { params: { status, role, companyId: company || undefined, page, size: 12 } }).then(r => r.data), [status, role, company, page])
   const state = useLoad(loader)
@@ -16,7 +16,7 @@ export function VerificationReviews() {
   async function download(id: number) { setError(''); try { await downloadDocument(id) } catch (e) { setError(apiFailure(e).message) } }
   async function review(e: FormEvent) {
     e.preventDefault(); if (!selected) return; setBusy(true); setError(''); setSuccess('')
-    try { await api.post(`/admin/verification-submissions/${selected.id}/review`, { status: decision, notes }); setSelected(null); setSuccess('Review recorded.'); state.reload() }
+    try { await api.post(`/admin/verification-submissions/${selected.id}/review`, { status: decision, notes }); setSelected(null); setSuccess('Review recorded.'); state.reload(); changed?.() }
     catch (e) { setError(apiFailure(e).message) } finally { setBusy(false) }
   }
   const rows = state.data?.content ?? []

@@ -109,10 +109,18 @@ public class JobApplicationService {
     @PreAuthorize("hasRole('CANDIDATE')")
     public List<ApplicationView> mine() { return applications.findByCandidateUserIdOrderByCreatedAtDescIdDesc(current.requireActive().getId()).stream().map(this::ownView).toList(); }
     @PreAuthorize("hasRole('CANDIDATE')")
+    @Transactional(readOnly=true)
+    public ApplicationView mine(Long id) {
+        Long jobId=applications.ownedJobId(id,current.requireActive().getId()).orElseThrow(CandidateService::missing);
+        return ownView(applications.findByIdAndJobId(id,jobId).orElseThrow(CandidateService::missing));
+    }
+    @PreAuthorize("hasRole('CANDIDATE')")
     public ApplicationView withdraw(Long id) {
         Long jobId=applications.ownedJobId(id,current.requireActive().getId()).orElseThrow(CandidateService::missing);
         jobs.findByIdForUpdate(jobId).orElseThrow(CandidateService::missing);
         var a=applications.findById(id).orElseThrow(CandidateService::missing);
+        if(a.getStatus()==ApplicationStatus.WITHDRAWN) return ownView(a);
+        if(a.getStatus().isTerminal()) throw invalid("A closed application cannot be withdrawn.");
         a.setStatus(ApplicationStatus.WITHDRAWN);clearShortlist(a);applications.flush();return ownView(a);
     }
     @PreAuthorize("hasRole('EMPLOYER')")
@@ -121,6 +129,43 @@ public class JobApplicationService {
             .sorted(java.util.Comparator.comparing(Applicant::finalScore).reversed()
                 .thenComparing(Applicant::appliedAt, java.util.Comparator.reverseOrder())
                 .thenComparing(Applicant::id, java.util.Comparator.reverseOrder())).toList();
+    }
+    @PreAuthorize("hasRole('EMPLOYER')")
+    public ApplicantPage applicants(Long jobId, ApplicantSearch input) {
+        var job=ownedJob(jobId);
+        if((long)input.page()*input.size()>Integer.MAX_VALUE) throw invalid("The requested page is too large.");
+        // Rank scalar rows with the canonical calculation; hydrate only this page's profiles.
+        // This preserves DECIMAL128 experience rounding and live employer weights exactly.
+        record Ranked(JobApplicationRepository.ApplicantSummary row, java.math.BigDecimal score) {}
+        var weights=weightView(job);
+        java.util.Comparator<Ranked> order=switch(input.sort()) {
+            case "scoreDesc" -> java.util.Comparator.comparing(Ranked::score).reversed();
+            case "scoreAsc" -> java.util.Comparator.comparing(Ranked::score);
+            case "newest" -> java.util.Comparator.comparing((Ranked r)->r.row().getAppliedAt()).reversed();
+            case "oldest" -> java.util.Comparator.comparing((Ranked r)->r.row().getAppliedAt());
+            case "experienceDesc" -> java.util.Comparator.comparingInt((Ranked r)->r.row().getExperienceMonths()).reversed();
+            case "experienceAsc" -> java.util.Comparator.comparingInt((Ranked r)->r.row().getExperienceMonths());
+            default -> throw invalid("Choose a supported applicant sort order.");
+        };
+        order=order.thenComparing(r->r.row().getAppliedAt(),java.util.Comparator.reverseOrder())
+            .thenComparing(r->r.row().getId(),java.util.Comparator.reverseOrder());
+        var ranked=applications.applicantSummaries(jobId,input.status(),input.assessment(),
+                input.assessment()==com.marketplace.interview.AssessmentSession.Status.NOT_STARTED,input.minExperience(),
+                input.search()==null || input.search().isBlank()?null:pattern(input.search())).stream()
+            .map(r->new Ranked(r,MeritScoring.finalScore(
+                MeritScoring.experience(r.getExperienceMonths(),job.getExpectedExperienceMonths()),
+                r.getAssessmentScore(),r.getCvScore(),r.getPortfolioScore(),weights)))
+            .filter(r->input.minScore()==null || r.score().compareTo(input.minScore())>=0)
+            .sorted(order).toList();
+        int totalPages=(int)((ranked.size()+(long)input.size()-1)/input.size());
+        int page=Math.min(input.page(),Math.max(0,totalPages-1));
+        var selected=ranked.stream().skip((long)page*input.size()).limit(input.size()).toList();
+        var entities=new java.util.HashMap<Long,JobApplication>();
+        if(!selected.isEmpty()) applications.findByJobIdAndIdIn(jobId,selected.stream().map(r->r.row().getId()).toList())
+            .forEach(a->entities.put(a.getId(),a));
+        var content=selected.stream().map(r->applicantView(entities.get(r.row().getId()),
+            r.row().getAssessmentStatus()==null?"NOT_STARTED":r.row().getAssessmentStatus().name())).toList();
+        return new ApplicantPage(content,ranked.size(),applications.countByJobId(jobId),page,input.size(),totalPages);
     }
     @PreAuthorize("hasRole('EMPLOYER')")
     public Applicant applicant(Long jobId,Long id) { ownedJob(jobId);return applicantView(applications.findByIdAndJobId(id,jobId).orElseThrow(CandidateService::missing)); }
@@ -139,7 +184,7 @@ public class JobApplicationService {
     @PreAuthorize("hasRole('EMPLOYER')")
     public void removeShortlist(Long jobId,Long candidateId) {
         var job=ownedJob(jobId);
-        applications.findByJobIdAndCandidateId(jobId,candidateId).filter(a->a.getStatus()==ApplicationStatus.SHORTLISTED).ifPresent(a->change(job,a,ApplicationStatus.UNDER_REVIEW));
+        applications.findByJobIdAndCandidateId(jobId,candidateId).filter(a->a.getStatus()==ApplicationStatus.SHORTLISTED).ifPresent(a->change(job,a,ApplicationStatus.UNDER_REVIEW,true));
         shortlists.findByJobIdAndCandidateId(jobId,candidateId).ifPresent(shortlists::delete);
     }
     @PreAuthorize("hasRole('ADMIN')")
@@ -153,8 +198,14 @@ public class JobApplicationService {
     @PreAuthorize("hasRole('ADMIN')")
     public Applicant adminView(Long id) { current.requireActive(); return applicantView(applications.findById(id).orElseThrow(CandidateService::missing)); }
     private void change(Job j,JobApplication a,ApplicationStatus status) {
+        change(j,a,status,false);
+    }
+    private void change(Job j,JobApplication a,ApplicationStatus status,boolean removingShortlist) {
         if(status==ApplicationStatus.WITHDRAWN) throw new ApiException(400,"INVALID_STATUS","Only the candidate can withdraw an application.");
-        if(a.getStatus()==ApplicationStatus.WITHDRAWN) throw conflict("APPLICATION_WITHDRAWN","This application has been withdrawn.");
+        if(a.getStatus()==status) return;
+        boolean explicitRemoval=removingShortlist && a.getStatus()==ApplicationStatus.SHORTLISTED && status==ApplicationStatus.UNDER_REVIEW;
+        if(!explicitRemoval && !a.getStatus().canTransitionTo(status))
+            throw invalid("Cannot change application status from "+a.getStatus()+" to "+status+".");
         if(status==ApplicationStatus.SHORTLISTED) {
             var c=a.getCandidate();
             if(j.getStatus()!=JobStatus.ACTIVE) throw conflict("JOB_CLOSED","This job is closed.");
@@ -199,14 +250,15 @@ public class JobApplicationService {
     private EvaluationWeights weightView(Job job) {
         return new EvaluationWeights(job.getCvWeight(),job.getPortfolioWeight(),job.getExperienceWeight(),job.getAssessmentWeight());
     }
-    private Applicant applicantView(JobApplication a) {
+    private Applicant applicantView(JobApplication a) { return applicantView(a,assessmentStatus(a)); }
+    private Applicant applicantView(JobApplication a, String assessmentStatus) {
         var experience=MeritScoring.experience(a.getCandidate().getTotalExperienceMonths(),a.getJob().getExpectedExperienceMonths());
         return new Applicant(a.getId(),a.getJob().getId(),a.getStatus(),a.getCreatedAt(),a.getUpdatedAt(),candidateViews.card(a.getCandidate()),
             a.getCvScore(),a.getPortfolioScore(),experience,a.getAssessmentScore(),
             MeritScoring.finalScore(experience,a.getAssessmentScore(),a.getCvScore(),a.getPortfolioScore(),weightView(a.getJob())),
             MeritScoring.evaluationStatus(a.getCvScore(),a.getPortfolioScore(),a.getAssessmentScore()),
             com.marketplace.ai.EvaluationAttempt.view(a.getCvAttempt(), a.getCvScore()),
-            com.marketplace.ai.EvaluationAttempt.view(a.getPortfolioAttempt(), a.getPortfolioScore()),assessmentStatus(a));
+            com.marketplace.ai.EvaluationAttempt.view(a.getPortfolioAttempt(), a.getPortfolioScore()),assessmentStatus);
     }
     private String assessmentStatus(JobApplication a) {
         return assessmentSessions.findByJobApplicationId(a.getId()).map(s -> s.getStatus().name()).orElse("NOT_STARTED");
