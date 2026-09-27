@@ -1,3 +1,4 @@
+import { candidateTrackLabel } from './types'
 import { CompanyTypeSelector, type CompanyType } from '../company-types/CompanyTypeSelector'
 import { useState, type FormEvent } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router'
@@ -52,16 +53,16 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   }
   const nameField = accountType === 'CANDIDATE' ? 'fullName' : 'companyName'
   const fieldError = (name: string) => fields[name] ? <span id={`${name}-error`} className="mt-1 block text-sm text-rose-700">{fields[name]}</span> : null
-  return <div className="grid overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[0.85fr_1.15fr]">
+  return <div className="auth-panel grid overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm lg:grid-cols-[0.85fr_1.15fr]">
     <aside className="relative bg-slate-900 p-6 text-white sm:p-10 lg:p-12">
-      <span className="inline-flex rounded-full border border-teal-300/30 bg-teal-300/10 px-3 py-1 text-xs font-semibold text-teal-200">A better path to opportunity</span>
-      <h2 className="mt-4 max-w-sm text-2xl font-semibold leading-tight lg:mt-7 lg:text-4xl">Your skills.<br />Your next chapter.</h2>
+      <span className="inline-flex rounded-full border border-teal-300/30 bg-teal-300/10 px-3 py-1 text-xs font-semibold text-teal-200">Verified Career</span>
+      <h2 className="mt-4 max-w-sm text-2xl font-semibold leading-tight lg:mt-7 lg:text-4xl">A place for skills.<br />A path to work.</h2>
       <p className="mt-5 hidden max-w-sm leading-relaxed text-slate-300 lg:block">A career community for Bangladesh’s professionals, skilled workers and employers.</p>
       <div className="mt-9 hidden gap-4 lg:grid">
-        <div className="rounded-2xl border border-white/15 p-4"><p className="text-sm font-bold text-teal-200">TECH · Professional talent</p><p className="mt-1 text-sm text-slate-300">Students, developers and engineers.</p></div>
+        <div className="rounded-2xl border border-white/15 p-4"><p className="text-sm font-bold text-teal-200">Tech and Corporate</p><p className="mt-1 text-sm text-slate-300">Students, developers and engineers.</p></div>
         <div className="rounded-2xl border border-white/15 p-4"><p className="text-sm font-bold text-teal-200">TRADE · Skilled workforce</p><p className="mt-1 text-sm text-slate-300" lang="bn">আপনার দক্ষতা, আপনার পরিচয়।</p></div>
       </div>
-      <p className="mt-8 hidden text-xs leading-relaxed text-slate-400 lg:block">University showcase · Platform/manual verification.<br />Creating an account does not confer verified status.</p>
+      <p className="mt-8 hidden text-xs leading-relaxed text-slate-400 lg:block">Platform/manual verification.<br />Creating an account does not confer verified status.</p>
     </aside>
     <section className="p-6 sm:p-10 lg:p-12" aria-labelledby="auth-title">
       <p className="eyebrow">{registering ? 'GET STARTED' : 'WELCOME BACK'}</p>
@@ -72,7 +73,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
         <fieldset disabled={busy} className="space-y-5 disabled:opacity-70">
           {registering && <>
             <fieldset><legend className="field-label">I’m here as a</legend><div className="grid grid-cols-2 gap-3">{(['CANDIDATE','EMPLOYER'] as const).map(type => <label key={type} className={`choice-card ${accountType === type ? 'choice-selected' : ''}`}><input type="radio" name="accountType" value={type} checked={accountType === type} onChange={() => { setAccountType(type); setFields({}); setError('') }} className="accent-indigo-600" /><span>{type === 'CANDIDATE' ? 'Candidate' : 'Employer'}</span></label>)}</div></fieldset>
-            {accountType === 'CANDIDATE' && <fieldset><legend className="field-label">Choose your career track</legend><div className="grid grid-cols-2 gap-3">{(['TECH','TRADE'] as const).map(type => <label key={type} className={`choice-card items-start ${track === type ? 'choice-selected' : ''}`}><input type="radio" name="track" checked={track === type} onChange={() => setTrack(type)} className="mt-1 accent-indigo-600" /><span>{type}<span className="mt-1 block text-xs font-normal text-slate-600">{type === 'TECH' ? 'Professional careers' : 'দক্ষ কর্মী'}</span></span></label>)}</div></fieldset>}
+            {accountType === 'CANDIDATE' && <fieldset><legend className="field-label">Choose your career track</legend><div className="grid grid-cols-2 gap-3">{(['TECH','TRADE'] as const).map(type => <label key={type} className={`choice-card items-start ${track === type ? 'choice-selected' : ''}`}><input type="radio" name="track" checked={track === type} onChange={() => setTrack(type)} className="mt-1 accent-indigo-600" /><span>{candidateTrackLabel(type)}<span className="mt-1 block text-xs font-normal text-slate-600">{type === 'TECH' ? 'Professional careers' : 'দক্ষ কর্মী'}</span></span></label>)}</div></fieldset>}
             <label className="block"><span id="name-label" className="field-label">{accountType === 'EMPLOYER' ? 'Company name' : trade ? 'Full name / পুরো নাম' : 'Full name'}</span><input key={nameField} name="name" aria-labelledby="name-label" autoComplete={accountType === 'EMPLOYER' ? 'organization' : 'name'} required maxLength={accountType === 'EMPLOYER' ? 200 : 160} className="form-input" aria-invalid={!!fields[nameField]} aria-describedby={fields[nameField] ? `${nameField}-error` : undefined} />{fieldError(nameField)}</label>
             {accountType === 'EMPLOYER' && <CompanyTypeSelector value={companyType?.id ?? null} custom={customCompanyType} selected={companyType} error={fields.companyTypeId || fields.customCompanyType} onChange={(type, custom) => { setCompanyType(type); setCustomCompanyType(custom) }} />}
           </>}

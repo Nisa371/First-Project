@@ -1,5 +1,6 @@
 export type Role = 'CANDIDATE' | 'EMPLOYER' | 'EVALUATOR' | 'ADMIN'
 export type CandidateType = 'TECH' | 'TRADE'
+export const candidateTrackLabel = (type: string | null | undefined) => type === 'TECH' ? 'Tech and Corporate' : type === 'TRADE' ? 'Trade' : type ?? ''
 export interface CurrentUser {
   id: number
   email: string

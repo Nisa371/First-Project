@@ -23,7 +23,7 @@ const tones: Record<ApplicationStatus, string> = {
 }
 export function ApplicationBadge({ status }: { status: ApplicationStatus }) {
   const tr = useTradeText()
-  return <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${tones[status]}`}>{tr(applicationLabels[status])}</span>
+  return <span className={`badge ${tones[status]}`}>{tr(applicationLabels[status])}</span>
 }
 export function ApplicationAssessmentLink({ application: a }: { application: Application }) {
   const tr = useTradeText()

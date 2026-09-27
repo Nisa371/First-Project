@@ -112,6 +112,8 @@ export const tradeBn: Readonly<Record<string, string>> = {
   "Candidate track": "প্রার্থীর ধরন",
   "All tracks": "সব ধরনের প্রার্থী",
   "TECH · Professional": "পেশাজীবী",
+  "Tech and Corporate": "প্রযুক্তি ও কর্পোরেট পেশা",
+  "Trade": "দক্ষ কর্মী",
   "TRADE · Field & household": "কারিগরি ও গৃহস্থালি কাজ",
   "Experience required (months)": "প্রয়োজনীয় অভিজ্ঞতা (মাস)",
   "Minimum months": "সর্বনিম্ন মাস",
