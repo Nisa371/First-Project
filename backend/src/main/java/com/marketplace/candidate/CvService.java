@@ -22,16 +22,22 @@ public class CvService {
     private final CandidateProfileRepository candidates;
     private final CurrentAccount current;
     private final Path root;
+    private final CvEvaluationContent content;
+    private final org.springframework.context.ApplicationEventPublisher events;
+    public record UploadResult(CandidateDtos.ProfileView profile, String warning) { }
+
     private final com.marketplace.job.JobApplicationRepository applications;
     public CvService(CandidateService profiles, CandidateProfileRepository candidates, CurrentAccount current, com.marketplace.job.JobApplicationRepository applications,
+        CvEvaluationContent content, org.springframework.context.ApplicationEventPublisher events,
         @Value("${app.cv.directory:uploads/cv}") String directory) {
+        this.content=content; this.events=events;
         this.applications=applications; this.profiles=profiles; this.candidates=candidates; this.current=current;
         this.root=Path.of(directory).toAbsolutePath().normalize();
     }
     @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager entityManager;
     @Transactional(rollbackFor=IOException.class)
     @PreAuthorize("hasRole('CANDIDATE')")
-    public CandidateDtos.ProfileView upload(MultipartFile file) throws IOException {
+    public UploadResult upload(MultipartFile file) throws IOException {
         var c=profiles.own();
         // Refresh while locking: own() may have loaded a snapshot before another upload committed.
         entityManager.refresh(c, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
@@ -56,7 +62,12 @@ public class CvService {
         });
         Files.write(path(stored),bytes,StandardOpenOption.CREATE_NEW);
         c.setCvStoredName(stored); c.setCvOriginalName(name); c.setCvContentType("application/pdf");
-        candidates.saveAndFlush(c); return profiles.view(c);
+        String extracted = content.extract(bytes);
+        candidates.saveAndFlush(c);
+        events.publishEvent(new CandidateEvaluationContentChanged(c.getId(), true, false));
+        return new UploadResult(profiles.view(c), extracted == null
+            ? "CV uploaded, but its text could not be extracted. This PDF cannot be used for AI evaluation. Please upload a text-based PDF or complete your CV using the CV Builder."
+            : null);
     }
     @Transactional(readOnly=true)
     @PreAuthorize("hasAnyRole('CANDIDATE','EMPLOYER')")

@@ -21,6 +21,7 @@ import static com.marketplace.candidate.CandidateDtos.*;
 @RequiredArgsConstructor
 @Transactional
 public class CandidateService {
+    private final org.springframework.context.ApplicationEventPublisher events;
     private final CurrentAccount current;
     private final CandidateProfileRepository candidates;
     private final CandidateSkillRepository candidateSkills;
@@ -51,7 +52,9 @@ public class CandidateService {
         c.setFullName(r.fullName().trim()); c.setPhone(r.phone()); c.setLocation(r.location()); c.setBio(r.bio());
         c.setExperienceSummary(r.experienceSummary()); if(r.totalExperienceMonths()!=null) c.setTotalExperienceMonths(r.totalExperienceMonths()); c.setAvailability(r.availability());
         if (c.getCandidateType() == CandidateType.TECH) {
+            boolean portfolioChanged = !java.util.Objects.equals(c.getPortfolioUrl(), r.portfolioUrl());
             c.setEducationSummary(r.educationSummary()); c.setPortfolioUrl(r.portfolioUrl());
+            if (portfolioChanged) events.publishEvent(new CandidateEvaluationContentChanged(c.getId(), false, true));
         } else { c.setPrimaryTradeCategory(r.primaryTradeCategory()); }
         return view(c);
     }

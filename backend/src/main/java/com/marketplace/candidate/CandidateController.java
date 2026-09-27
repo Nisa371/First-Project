@@ -19,7 +19,7 @@ public class CandidateController {
     @PostMapping("/me/skills") public ProfileView addSkill(@Valid @RequestBody SkillRequest r) { return service.addSkill(r); }
     @DeleteMapping("/me/skills/{id}") public ProfileView removeSkill(@PathVariable Long id) { return service.removeSkill(id); }
     @PostMapping(value="/me/cv", consumes="multipart/form-data")
-    public ProfileView upload(@RequestParam("file") MultipartFile file) throws IOException { return cvs.upload(file); }
+    public CvService.UploadResult upload(@RequestParam("file") MultipartFile file) throws IOException { return cvs.upload(file); }
     @GetMapping("/me/cv") public ResponseEntity<byte[]> ownCv() throws IOException { return attachment(cvs.download(null)); }
     @GetMapping("/{id}/cv") public ResponseEntity<byte[]> cv(@PathVariable Long id) throws IOException { return attachment(cvs.download(id)); }
     private ResponseEntity<byte[]> attachment(byte[] bytes) {

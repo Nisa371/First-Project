@@ -7,7 +7,11 @@ public final class AiEvaluationDtos {
     private AiEvaluationDtos() {}
     public record JobContext(String title, String description, String publicExpectations,
         String privateExpectations, int expectedExperienceMonths, String requiredSkill, String track, String companyCategory) {}
-    public record CvContext(StructuredCvDtos.Content content, List<String> skills, int experienceMonths, String portfolioUrl) {}
+    public record CvContext(StructuredCvDtos.Content content, List<String> skills, int experienceMonths, String portfolioUrl, String uploadedPdfText) {
+        public CvContext(StructuredCvDtos.Content content, List<String> skills, int experienceMonths, String portfolioUrl) {
+            this(content, skills, experienceMonths, portfolioUrl, null);
+        }
+    }
     public record PortfolioContext(List<StructuredCvDtos.Project> projects, List<StructuredCvDtos.Achievement> achievements,
         List<String> skills, String githubUrl, String portfolioUrl) {}
     public record CvEvaluationRequest(String instruction, String version, JobContext job, CvContext candidate) {}

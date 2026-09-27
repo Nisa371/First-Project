@@ -5,6 +5,8 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication,L
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from JobApplication a where a.id=:id")
     Optional<JobApplication> findForEvaluation(Long id);
+    @Query("select a.id from JobApplication a where a.candidate.id=:candidateId and a.status <> com.marketplace.job.ApplicationStatus.WITHDRAWN and ((:cv=true and a.cvScore is null) or (:portfolio=true and a.portfolioScore is null))")
+    List<Long> outstandingEvaluations(Long candidateId, boolean cv, boolean portfolio);
     interface ApplicationState { Long getJobId(); Long getId(); ApplicationStatus getStatus(); }
     @Query("select a.job.id as jobId, a.id as id, a.status as status from JobApplication a where a.candidate.id=:candidateId and a.job.id in :jobIds")
     List<ApplicationState> states(Long candidateId, List<Long> jobIds);

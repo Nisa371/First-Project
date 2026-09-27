@@ -22,11 +22,15 @@ public class AiCandidateEvaluationService {
 
     // Internal after-commit entry point. No HTTP endpoint or request security context.
     public void evaluateSubmitted(Long applicationId) {
+        evaluateOutstanding(applicationId, Component.BOTH);
+    }
+
+    public void evaluateOutstanding(Long applicationId, Component component) {
         var a = applications.findForEvaluation(applicationId).orElse(null);
         if (a == null || a.getStatus() == ApplicationStatus.WITHDRAWN) return;
         // The application lock serializes duplicate deliveries and manual evaluations.
-        if (a.getCvScore() == null) attempt(a, true);
-        if (a.getPortfolioScore() == null) attempt(a, false);
+        if (component != Component.PORTFOLIO && a.getCvScore() == null) attempt(a, true);
+        if (component != Component.CV && a.getPortfolioScore() == null) attempt(a, false);
     }
 
     @PreAuthorize("hasRole('EMPLOYER')")
@@ -62,7 +66,7 @@ public class AiCandidateEvaluationService {
         } catch (AiEvaluationUnavailableException e) {
             attempt.finish("UNAVAILABLE", "AI_PROVIDER_NOT_CONFIGURED"); return;
         } catch (EvaluationRequestBuilder.InsufficientInput e) {
-            attempt.finish("UNAVAILABLE", cv ? "INSUFFICIENT_CV_DATA" : "INSUFFICIENT_PORTFOLIO_DATA"); return;
+            attempt.finish("UNAVAILABLE", e.getMessage()); return;
         } catch (InvalidResponse | AiProviderInvalidResponseException e) {
             attempt.finish("FAILED", "INVALID_AI_RESPONSE"); return;
         } catch (RuntimeException e) {

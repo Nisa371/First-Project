@@ -14,6 +14,7 @@ import static com.marketplace.candidate.StructuredCvDtos.*;
 
 @Service @RequiredArgsConstructor @Transactional
 public class StructuredCvService {
+    private final org.springframework.context.ApplicationEventPublisher events;
     private final CandidateCvRepository cvs;
     private final CandidateProfileRepository candidates;
     private final CandidateService profiles;
@@ -44,6 +45,11 @@ public class StructuredCvService {
         var cv = cvs.findByCandidateId(candidate.getId()).orElseGet(() -> {
             var created = new CandidateCv(); created.setCandidate(candidate); return created;
         });
+        var previous = content(cv);
+        boolean cvChanged = !previous.equals(r);
+        boolean portfolioChanged = !previous.projects().equals(r.projects())
+            || !previous.achievements().equals(r.achievements())
+            || !java.util.Objects.equals(previous.githubUrl(), r.githubUrl());
         cv.setSummary(r.summary()); cv.setLinkedinUrl(r.linkedinUrl()); cv.setGithubUrl(r.githubUrl());
         cv.getEducation().clear();
         r.education().forEach(e -> cv.getEducation().add(new CvEntries.Education(e.institution(), e.qualification(), e.fieldOfStudy(), e.startDate(), e.endDate(), e.current(), e.grade(), e.description())));
@@ -58,6 +64,8 @@ public class StructuredCvService {
         cv.getAchievements().clear();
         r.achievements().forEach(e -> cv.getAchievements().add(new CvEntries.Achievement(e.title(), e.issuer(), e.awardDate(), e.description())));
         cvs.saveAndFlush(cv);
+        if (cvChanged || portfolioChanged)
+            events.publishEvent(new CandidateEvaluationContentChanged(candidate.getId(), cvChanged, portfolioChanged));
         return view(candidate);
     }
     private View view(CandidateProfile candidate) {

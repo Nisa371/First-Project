@@ -10,7 +10,8 @@ import { Workspace, LoadState, Feedback, Empty } from './shared'
 function evaluationMessage(attempt: EvaluationAttempt) {
   switch (attempt.failureCode) {
     case 'AI_PROVIDER_NOT_CONFIGURED': return 'AI evaluation provider is not configured yet.'
-    case 'INSUFFICIENT_CV_DATA': return 'Insufficient CV data. A structured CV is needed; uploaded PDFs have no extracted text.'
+    case 'CV_TEXT_UNREADABLE': return 'CV text could not be extracted. Please upload a text-based PDF or complete the CV Builder.'
+    case 'INSUFFICIENT_CV_DATA': return 'No usable CV data. Upload a text-based PDF or complete the CV Builder.'
     case 'INSUFFICIENT_PORTFOLIO_DATA': return 'Insufficient portfolio data. No projects or portfolio links provided.'
     case 'INVALID_AI_RESPONSE': return 'Evaluation failed: the provider returned an invalid score.'
     default: return 'Evaluation unavailable.'

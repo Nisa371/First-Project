@@ -11,9 +11,11 @@ import org.springframework.transaction.event.TransactionalEventListener;
 public class ApplicationEvaluationListener {
     private final AsyncTaskExecutor executor;
     private final AiCandidateEvaluationService evaluations;
+    private final com.marketplace.job.JobApplicationRepository applications;
 
     public ApplicationEvaluationListener(@Qualifier("applicationTaskExecutor") AsyncTaskExecutor executor,
-                                         AiCandidateEvaluationService evaluations) {
+                                         AiCandidateEvaluationService evaluations, com.marketplace.job.JobApplicationRepository applications) {
+        this.applications = applications;
         this.executor = executor;
         this.evaluations = evaluations;
     }
@@ -36,4 +38,27 @@ public class ApplicationEvaluationListener {
             log.warn("Automatic evaluation could not start for application {}", event.applicationId());
         }
     }
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void contentChanged(com.marketplace.candidate.CandidateEvaluationContentChanged event) {
+        try {
+            executor.execute(() -> {
+                try {
+                    var component = event.cv() && event.portfolio() ? AiCandidateEvaluationService.Component.BOTH
+                        : event.cv() ? AiCandidateEvaluationService.Component.CV : AiCandidateEvaluationService.Component.PORTFOLIO;
+                    for (Long id : applications.outstandingEvaluations(event.candidateId(), event.cv(), event.portfolio())) {
+                        try {
+                            evaluations.evaluateOutstanding(id, component);
+                        } catch (RuntimeException ignored) {
+                            log.warn("Automatic evaluation could not complete for application {}", id);
+                        }
+                    }
+                } catch (RuntimeException ignored) {
+                    log.warn("Automatic evaluation could not load outstanding applications");
+                }
+            });
+        } catch (RuntimeException ignored) {
+            log.warn("Automatic evaluation could not start after candidate content update");
+        }
+    }
+
 }
