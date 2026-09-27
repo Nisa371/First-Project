@@ -1,5 +1,5 @@
 import { ProfileReadiness } from './ProfileReadiness'
-import { candidateReadiness, portfolioState } from './profileReadiness'
+import { candidateReadiness, portfolioState } from './profileReadinessUtils'
 import { useTradeText } from '../trade/useTradeText'
 import { Link } from 'react-router'
 import { PhotoUpload } from '../cv/ProfilePhoto'

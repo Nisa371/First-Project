@@ -1,5 +1,5 @@
 import type { Profile } from './api'
-import { candidateReadiness } from './profileReadiness'
+import { candidateReadiness } from './profileReadinessUtils'
 import { useTradeText } from '../trade/useTradeText'
 
 export function ProfileReadiness({ profile }: { profile: Profile }) {

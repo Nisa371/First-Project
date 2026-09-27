@@ -1,5 +1,5 @@
 import { candidateTrackLabel } from '../auth/types'
-import { candidateReadiness } from './profileReadiness'
+import { candidateReadiness } from './profileReadinessUtils'
 import { useTradeText } from '../trade/useTradeText'
 import { useCallback, useRef, useState, type FormEvent } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'

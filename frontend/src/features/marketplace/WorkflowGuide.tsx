@@ -1,7 +1,7 @@
 import { Link } from 'react-router'
 import type { Applicant, Company, Job, Profile } from './api'
 import type { Checklist } from '../verification/api'
-import { candidateReadiness } from './profileReadiness'
+import { candidateReadiness } from './profileReadinessUtils'
 
 interface Action { title: string; why: string; to: string; cta: string }
 interface Step extends Action { done: boolean; required?: boolean; hint?: string }
