@@ -19,6 +19,7 @@ import static com.marketplace.job.JobDtos.*;
 @PreAuthorize("hasRole('EMPLOYER')")
 public class JobService {
     private final JobRepository jobs;
+    private final com.marketplace.replacement.ReplacementRequestRepository replacements;
     private final EmployerService employers;
     private final CurrentAccount current;
     private final com.marketplace.verification.VerificationChecklist verifications;
@@ -57,7 +58,7 @@ public class JobService {
         apply(j,r); return view(j);
     }
     private void requireCompatible(Job j, JobRequest r) {
-        if(applications.countByJobId(j.getId())>0 && (j.getCandidateType()!=r.candidateType() || !java.util.Objects.equals(j.getRequiredSkill()==null?null:j.getRequiredSkill().getId(),r.requiredSkillId())))
+        if((replacements.findByFreeReplacementJobId(j.getId()).isPresent() || applications.countByJobId(j.getId())>0) && (j.getCandidateType()!=r.candidateType() || !java.util.Objects.equals(j.getRequiredSkill()==null?null:j.getRequiredSkill().getId(),r.requiredSkillId())))
             throw new ApiException(409,"JOB_HAS_APPLICATIONS","Track and required skill cannot change after applications arrive.");
     }
     @PreAuthorize("hasRole('ADMIN')")
@@ -65,6 +66,7 @@ public class JobService {
     @PreAuthorize("hasRole('ADMIN')")
     public JobView adminActivate(Long id) {
         current.requireActive(); var j=jobs.findByIdForUpdate(id).orElseThrow(CandidateService::missing);
+        if(replacements.findByFreeReplacementJobId(id).isPresent()) throw new ApiException(409,"REPLACEMENT_JOB","Replacement vacancies are managed through their replacement request and cannot be reactivated.");
         if(j.getEmployer().getUser().getAccountStatus()!=AccountStatus.ACTIVE || payments.findByJobId(id).filter(p -> p.getStatus()==com.marketplace.payment.PaymentStatus.SUCCESS).isEmpty())
             throw new ApiException(409,"PAYMENT_REQUIRED","Activation requires an active employer and a successful demo posting payment.");
         if(!"VERIFIED".equals(verifications.forUser(j.getEmployer().getUser()).status()))

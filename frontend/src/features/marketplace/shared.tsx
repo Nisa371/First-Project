@@ -13,7 +13,8 @@ export function Workspace({ title, subtitle, children }: { title: string; subtit
   const notificationBadge = unread != null && unread > 0 ? <span aria-label={`${unread} ${tr('unread updates')}`} className="ml-2 inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-xs font-bold text-indigo-800 dark:bg-indigo-900 dark:text-indigo-100">{unread > 99 ? '99+' : unread}</span> : null
   const root = `/${user?.role.toLowerCase()}`
   const links = user?.role === 'CANDIDATE' ? [['dashboard', tr("Overview")], ['profile', tr("My profile")], ['cv', tr("CV Builder")], ['jobs', tr("Explore Jobs")], ['applications', tr("My applications")], ...(user.candidateType === 'TRADE' ? [['onboarding', 'বাংলায় শুরু করুন']] : []), ['verification', tr("Verification")], ['bookings', tr("Appointments")]] : user?.role === 'EVALUATOR' ? [['dashboard', 'Work queue'], ['verifications', 'Verifications'], ['bookings', tr("Appointments")]] : user?.role === 'ADMIN' ? [['dashboard', tr("Overview")], ['queue', 'Waiting room']] : [['dashboard', tr("Overview")], ['profile', 'Company profile'], ['jobs', 'Jobs'], ['candidates', 'Applicants']]
-  if (user?.role !== 'EVALUATOR') links.push(['placements', tr("Placements")], ['replacements', tr("Replacements")])
+  if (user?.role !== 'EVALUATOR') links.push(['placements', tr("Placements")])
+  if (user?.role === 'EMPLOYER' || user?.role === 'ADMIN') links.push(['replacements', tr("Replacements")])
   if (user?.candidateType === 'TRADE') links.push(['queue', 'কাজের তালিকা'])
   if (user?.role === 'EMPLOYER') links.push(['verification', tr("Verification")])
   if (user?.role !== 'EMPLOYER') links.push(['training', tr("Training")])

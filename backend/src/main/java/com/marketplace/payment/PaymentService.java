@@ -21,6 +21,7 @@ public class PaymentService {
     private final PaymentRepository payments;
     private final DemoPaymentPrices prices;
     private final JobRepository jobs;
+    private final com.marketplace.replacement.ReplacementRequestRepository replacements;
     private final BookingRepository bookings;
     private final CandidateProfileRepository candidates;
     private final AppointmentSlotRepository slots;
@@ -31,6 +32,7 @@ public class PaymentService {
         var j=jobs.findOwnedForUpdate(id,u.getId()).orElseThrow(PaymentService::missing);
         if(!"VERIFIED".equals(verifications.forUser(j.getEmployer().getUser()).status()))
             throw new ApiException(403,"VERIFICATION_REQUIRED","Employer verification is required before posting jobs.");
+        if(replacements.findByFreeReplacementJobId(id).isPresent()) throw conflict("This replacement vacancy does not require publication payment.");
         if(j.getStatus()!=JobStatus.DRAFT) throw conflict("Only unpaid drafts need a posting payment.");
         var p=payments.findByJobId(id).orElseGet(() -> {
             var payment=new PaymentTransaction(); payment.setPayer(u); payment.setJob(j);

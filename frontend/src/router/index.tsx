@@ -48,7 +48,8 @@ export const router = createBrowserRouter([
     ...(['CANDIDATE', 'EMPLOYER', 'ADMIN', 'EVALUATOR'] as Role[]).map(role => ({ element: <ProtectedRoute role={role} />, children: [
       { path: `/${role.toLowerCase()}/notifications`, element: <NotificationsPage /> },
       ...(role !== 'EMPLOYER' ? [{ path: `/${role.toLowerCase()}/training`, element: <TrainingPage /> }] : []),
-      ...(role !== 'EVALUATOR' ? [{ path: `/${role.toLowerCase()}/placements`, element: <PlacementsPage /> }, { path: `/${role.toLowerCase()}/replacements`, element: <ReplacementsPage /> }] : []),
+      ...(role !== 'EVALUATOR' ? [{ path: `/${role.toLowerCase()}/placements`, element: <PlacementsPage /> }] : []),
+      ...(['EMPLOYER', 'ADMIN'].includes(role) ? [{ path: `/${role.toLowerCase()}/replacements`, element: <ReplacementsPage /> }] : []),
       ...(role === 'CANDIDATE' ? [{ path: '/candidate/queue', element: <QueuePage /> }] : []),
       ...(role === 'ADMIN' ? [{ path: '/admin/queue', element: <AdminQueuePage /> }] : []),
     ] })),

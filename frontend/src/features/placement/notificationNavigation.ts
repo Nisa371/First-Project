@@ -18,7 +18,7 @@ export function notificationDestination(notice: Notice, role: Role): string | nu
   if (role !== 'EMPLOYER' && notice.title === 'Your next learning step') return `${root}/training`
   if (notice.title === 'Account status updated' || notice.title.startsWith('Welcome')) return `${root}/dashboard`
   if (role !== 'EVALUATOR') {
-    if (/^Replacement #\d+ · /.test(notice.message)) return `${root}/replacements`
+    if (/^Replacement #\d+ · /.test(notice.message)) return role === 'CANDIDATE' ? `${root}/notifications` : `${root}/replacements`
     if (['Placement active', 'Placement ended'].includes(notice.title)) return `${root}/placements`
   }
   return null

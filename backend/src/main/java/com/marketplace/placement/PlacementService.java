@@ -31,7 +31,7 @@ public class PlacementService {
     private final CurrentAccount current;
     private final ApplicationEventPublisher events;
     public record PlacementView(Long id, Long candidateId, String candidateName, String company, String job,
-        String skill, PlacementStatus status, LocalDate startDate, boolean guaranteeEligible, Instant guaranteeExpiresAt) {}
+        String skill, PlacementStatus status, LocalDate startDate, boolean guaranteeEligible, Instant guaranteeExpiresAt, CandidateType candidateType, Long guaranteeDays) {}
     @PreAuthorize("hasAnyRole('CANDIDATE','EMPLOYER','ADMIN')")
     public List<PlacementView> mine() {
         var u=current.requireActive();
@@ -41,6 +41,14 @@ public class PlacementService {
     public PlacementView create(Long jobId, Long candidateId, boolean guaranteed) {
         var u=current.requireActive();
         var j=jobs.findOwnedForUpdate(jobId,u.getId()).orElseThrow(CandidateService::missing);
+        var replacement=replacements.findByFreeReplacementJobId(jobId).orElse(null);
+        if(replacement!=null) {
+            placements.findByIdForUpdate(replacement.getPlacement().getId()).orElseThrow(CandidateService::missing);
+            replacements.findByIdForUpdate(replacement.getId()).orElseThrow(CandidateService::missing);
+            if(replacement.getStatus()!=ReplacementStatus.HIRING || replacement.getPlacement().getStatus()!=PlacementStatus.ACTIVE
+                || !replacement.getEmployer().getId().equals(j.getEmployer().getId()) || j.getCandidateType()!=CandidateType.TECH)
+                throw conflict("This replacement job is no longer available for hiring.");
+        }
         var c=candidates.findByIdForUpdate(candidateId).orElseThrow(CandidateService::missing);
         if(placements.existsByJobIdAndCandidateId(jobId,candidateId))
             throw conflict("This applicant has already been hired for this job. View the existing placement.");
@@ -57,6 +65,11 @@ public class PlacementService {
         var p=new Placement(); p.setCandidate(c); p.setEmployer(j.getEmployer()); p.setJob(j); p.setSkill(j.getRequiredSkill());
         p.setGuaranteeEligible(guaranteed);
         activate(p,Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS));
+        if(replacement!=null) {
+            replacement.setReplacementPlacement(p); replacement.setSelectedCandidate(c);
+            replacement.setStatus(ReplacementStatus.COMPLETED); replacement.setActualCompletionAt(Instant.now());
+            replacement.getPlacement().setStatus(PlacementStatus.REPLACED); j.setStatus(JobStatus.CLOSED);
+        }
         events.publishEvent(new MarketplaceEvent(u, "PLACEMENT_CREATED", "PLACEMENT",p.getId(),List.of(u,c.getUser()),"Placement active", "Your placement in "+p.getSkill().getName()+" is now active."));
         return view(p);
     }
@@ -77,6 +90,6 @@ public class PlacementService {
         events.publishEvent(new MarketplaceEvent(current.requireActive(),"PLACEMENT_ENDED","PLACEMENT",id,List.of(p.getEmployer().getUser(),p.getCandidate().getUser()),"Placement ended","Placement #"+id+" is "+p.getStatus().name().toLowerCase()+"."));
         return view(p);
     }
-    public PlacementView view(Placement p) { return new PlacementView(p.getId(),p.getCandidate().getId(),p.getCandidate().getFullName(),p.getEmployer().getCompanyName(),p.getJob()==null?null:p.getJob().getTitle(),p.getSkill().getName(),p.getStatus(),p.getStartDate(),p.isGuaranteeEligible(),p.getGuaranteeExpiresAt()); }
+    public PlacementView view(Placement p) { return new PlacementView(p.getId(),p.getCandidate().getId(),p.getCandidate().getFullName(),p.getEmployer().getCompanyName(),p.getJob()==null?null:p.getJob().getTitle(),p.getSkill().getName(),p.getStatus(),p.getStartDate(),p.isGuaranteeEligible(),p.getGuaranteeExpiresAt(),p.getCandidate().getCandidateType(),p.getGuaranteeExpiresAt()==null?null:java.time.temporal.ChronoUnit.DAYS.between(p.getStartDate(),LocalDate.ofInstant(p.getGuaranteeExpiresAt(),ZoneOffset.UTC))); }
     public static ApiException conflict(String message) { return new ApiException(409,"INVALID_STATE",message); }
 }

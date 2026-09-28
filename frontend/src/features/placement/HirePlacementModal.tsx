@@ -23,7 +23,7 @@ export function HirePlacementModal({ jobId, candidateId, name, close, hired }: {
         <label className="flex gap-3 rounded-xl border p-4"><input type="radio" name="placement-type" checked={guaranteed} onChange={() => setGuaranteed(true)} /><span><strong>Replacement-guaranteed placement</strong><span className="mt-1 block text-sm text-slate-600">{policy.data ? `Replacement requests allowed within ${policy.data.days} days of the placement start date.` : 'Loading the current replacement policy…'}</span></span></label>
       </fieldset>
       <LoadState {...policy} />
-      {guaranteed && <p className="text-xs text-slate-500">The Admin policy in effect when you confirm sets the deadline. Matching depends on eligible workers in the existing skill queue. The fulfillment target is a separate 24 hours after requesting replacement.</p>}
+      {guaranteed && <p className="text-xs text-slate-500">The Admin policy in effect when you confirm sets the deadline. Tech & Corporate replacements receive a free job repost. Trade replacements use the worker queue with a separate 24-hour operational target.</p>}
       <Feedback error={error} />
       <div className="flex flex-wrap gap-3"><button type="button" className="button-secondary" disabled={busy} onClick={close}>Cancel</button><button className="button-primary" disabled={busy || (guaranteed && (!policy.data || policy.loading))}>{busy ? 'Hiring…' : 'Confirm hire'}</button></div>
     </form>

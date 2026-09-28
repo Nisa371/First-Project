@@ -26,9 +26,9 @@ import com.marketplace.candidate.CandidateProfile;
 @Setter
 @Entity
 @Table(name = "replacement_requests", uniqueConstraints = @UniqueConstraint(name = "uk_replacement_active_placement", columnNames = {"placement_id", "active_request"}), check = @CheckConstraint(constraint = """
-        target_completion_at >= requested_at
-        and ((status in ('COMPLETED', 'FAILED') and active_request is null)
-          or (status not in ('COMPLETED', 'FAILED') and active_request is not null and active_request = true))
+        (target_completion_at is null or target_completion_at >= requested_at)
+        and ((status in ('COMPLETED', 'FAILED', 'CANCELLED') and active_request is null)
+          or (status not in ('COMPLETED', 'FAILED', 'CANCELLED') and active_request is not null and active_request = true))
         """))
 public class ReplacementRequest extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -54,10 +54,14 @@ public class ReplacementRequest extends BaseEntity {
     @JoinColumn(name = "replacement_placement_id", nullable = true, unique = true)
     private Placement replacementPlacement;
 
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "free_replacement_job_id", unique = true)
+    private com.marketplace.job.Job freeReplacementJob;
+
     @Column(nullable = false, updatable = false)
     private Instant requestedAt;
 
-    @Column(nullable = false, updatable = false)
+    @Column(nullable = true, updatable = false)
     private Instant targetCompletionAt;
 
     @Column(nullable = true)
@@ -81,7 +85,7 @@ public class ReplacementRequest extends BaseEntity {
     @PrePersist
     @PreUpdate
     private void synchronizeActiveRequest() {
-        activeRequest = status == ReplacementStatus.COMPLETED || status == ReplacementStatus.FAILED
+        activeRequest = status == ReplacementStatus.COMPLETED || status == ReplacementStatus.FAILED || status == ReplacementStatus.CANCELLED
                 ? null : Boolean.TRUE;
     }
 }
