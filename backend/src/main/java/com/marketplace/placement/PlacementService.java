@@ -28,6 +28,7 @@ public class PlacementService {
     private final WaitingListEntryRepository queue;
     private final ReplacementRequestRepository replacements;
     private final QueueEligibilityService eligibility;
+    private final QueueService queueService;
     private final CurrentAccount current;
     private final ApplicationEventPublisher events;
     public record PlacementView(Long id, Long candidateId, String candidateName, String company, String job,
@@ -55,13 +56,19 @@ public class PlacementService {
         if(j.getStatus()!=JobStatus.ACTIVE || j.getRequiredSkill()==null || !j.getRequiredSkill().isActive()
             || !applications.existsByJobIdAndCandidateIdAndStatus(jobId,candidateId,ApplicationStatus.SHORTLISTED)
             || !shortlists.existsByJobIdAndCandidateId(jobId,candidateId) || c.getCandidateType()!=j.getCandidateType()
-            || !skills.existsByCandidateIdAndSkillId(candidateId,j.getRequiredSkill().getId())
+            || (c.getCandidateType()!=CandidateType.TRADE && (!skills.existsByCandidateIdAndSkillId(candidateId,j.getRequiredSkill().getId())
             || c.getUser().getRole()!=Role.CANDIDATE || c.getUser().getAccountStatus()!=AccountStatus.ACTIVE
             || c.getAvailability()!=Availability.AVAILABLE || queue.existsByCandidateIdAndStatus(candidateId,QueueStatus.RESERVED)
-            || placements.existsByCandidateIdAndStatusIn(candidateId,List.of(PlacementStatus.PENDING,PlacementStatus.ACTIVE)))
+            || placements.existsByCandidateIdAndStatusIn(candidateId,List.of(PlacementStatus.PENDING,PlacementStatus.ACTIVE)))))
             throw conflict("Hire an available, matching shortlisted candidate for an active job with a required skill.");
-        if(c.getCandidateType()==CandidateType.TRADE && !eligibility.check(candidateId,j.getRequiredSkill().getId()).eligible())
-            throw conflict("TRADE placement requires verified, hire-ready eligibility.");
+        if(c.getCandidateType()==CandidateType.TRADE) {
+            var readiness=eligibility.check(candidateId,j.getRequiredSkill().getId());
+            if(!readiness.eligible()) {
+                var reasons=readiness.checks().stream().filter(check->!check.passed())
+                    .map(check->tradeHiringFailure(check.code())).distinct().toList();
+                throw conflict("Cannot hire this candidate:\n• "+String.join("\n• ",reasons));
+            }
+        }
         var p=new Placement(); p.setCandidate(c); p.setEmployer(j.getEmployer()); p.setJob(j); p.setSkill(j.getRequiredSkill());
         p.setGuaranteeEligible(guaranteed);
         activate(p,Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS));
@@ -72,6 +79,18 @@ public class PlacementService {
         }
         events.publishEvent(new MarketplaceEvent(u, "PLACEMENT_CREATED", "PLACEMENT",p.getId(),List.of(u,c.getUser()),"Placement active", "Your placement in "+p.getSkill().getName()+" is now active."));
         return view(p);
+    }
+    private static String tradeHiringFailure(String code) {
+        return switch(code) {
+            case "TRADE" -> "This candidate is not registered as a Trade candidate.";
+            case "ACTIVE_ACCOUNT" -> "This candidate's account is not active for hiring.";
+            case "VERIFIED" -> "This Trade candidate has not completed verification.";
+            case "TRADE_SKILL" -> "This candidate does not have the required active Trade skill.";
+            case "AVAILABLE" -> "This candidate is currently unavailable.";
+            case "NOT_RESERVED" -> "This candidate is already reserved for another placement or replacement.";
+            case "NO_ACTIVE_PLACEMENT" -> "This candidate already has an active or pending placement.";
+            default -> "This candidate does not meet a required Trade hiring requirement.";
+        };
     }
     public void activate(Placement p, Instant now) {
         p.setStatus(PlacementStatus.ACTIVE); p.setStartDate(LocalDate.ofInstant(now,ZoneOffset.UTC));
@@ -87,6 +106,7 @@ public class PlacementService {
         candidates.findByIdForUpdate(p.getCandidate().getId()).orElseThrow(CandidateService::missing);
         if(p.getStatus()!=PlacementStatus.ACTIVE || replacements.findByPlacementIdAndActiveRequestTrue(id).isPresent()) throw conflict("Only active placements without an open replacement can be ended.");
         p.setStatus(complete?PlacementStatus.COMPLETED:PlacementStatus.TERMINATED);
+        queueService.synchronize(p.getCandidate().getId());
         events.publishEvent(new MarketplaceEvent(current.requireActive(),"PLACEMENT_ENDED","PLACEMENT",id,List.of(p.getEmployer().getUser(),p.getCandidate().getUser()),"Placement ended","Placement #"+id+" is "+p.getStatus().name().toLowerCase()+"."));
         return view(p);
     }

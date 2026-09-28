@@ -23,6 +23,7 @@ import static com.marketplace.candidate.CandidateDtos.*;
 public class CandidateService {
     private final org.springframework.context.ApplicationEventPublisher events;
     private final CurrentAccount current;
+    private final com.marketplace.replacement.QueueService queue;
     private final CandidateProfileRepository candidates;
     private final CandidateSkillRepository candidateSkills;
     private final CvEvaluationContent cvContent;
@@ -36,7 +37,7 @@ public class CandidateService {
         return candidates.findByUserId(current.requireActive().getId()).orElseThrow(() -> missing());
     }
     @PreAuthorize("hasRole('CANDIDATE')")
-    public ProfileView profile() { return view(own()); }
+    public ProfileView profile() { var c=own(); queue.synchronize(c.getId()); return view(c); }
     @PreAuthorize("hasRole('CANDIDATE')")
     public ProfileView update(ProfileRequest r) {
         var c = candidates.findByIdForUpdate(own().getId()).orElseThrow(CandidateService::missing);
@@ -56,22 +57,25 @@ public class CandidateService {
             c.setEducationSummary(r.educationSummary()); c.setPortfolioUrl(r.portfolioUrl());
             if (portfolioChanged) events.publishEvent(new CandidateEvaluationContentChanged(c.getId(), false, true));
         } else { c.setPrimaryTradeCategory(r.primaryTradeCategory()); }
+        queue.synchronize(c.getId());
         return view(c);
     }
     @PreAuthorize("hasRole('CANDIDATE')")
     public ProfileView addSkill(SkillRequest r) {
         var c = candidates.findByIdForUpdate(own().getId()).orElseThrow(CandidateService::missing);
         var skill = skills.findById(r.skillId()).filter(s -> s.isActive()).orElseThrow(() -> missing());
+        if (c.getCandidateType()==CandidateType.TRADE && !"TRADE".equals(skill.getCategory()))
+            throw new ApiException(400,"INVALID_SKILL","Choose an active Trade skill.");
         if (candidateSkills.existsByCandidateIdAndSkillId(c.getId(), skill.getId()))
             throw new ApiException(409,"DUPLICATE_SKILL","This skill is already on your profile.");
         var link = new CandidateSkill(); link.setCandidate(c); link.setSkill(skill); link.setProficiencyLevel(r.proficiencyLevel());
-        candidateSkills.saveAndFlush(link); return view(c);
+        candidateSkills.saveAndFlush(link); queue.synchronize(c.getId()); return view(c);
     }
     @PreAuthorize("hasRole('CANDIDATE')")
     public ProfileView removeSkill(Long id) {
         var c = candidates.findByIdForUpdate(own().getId()).orElseThrow(CandidateService::missing);
         candidateSkills.findByCandidateId(c.getId()).stream().filter(s -> s.getSkill().getId().equals(id)).forEach(candidateSkills::delete);
-        candidateSkills.flush(); return view(c);
+        candidateSkills.flush(); queue.synchronize(c.getId()); return view(c);
     }
     public List<SkillView> skillViews(Long id) {
         return candidateSkills.findByCandidateId(id).stream().map(s -> new SkillView(s.getSkill().getId(),

@@ -27,6 +27,7 @@ public class ReplacementQueueManager {
     private final CandidateProfileRepository candidates;
     private final WaitingListEntryRepository queue;
     private final QueueEligibilityService eligibility;
+    private final QueueService queueService;
     private final CurrentAccount current;
     private final ApplicationEventPublisher events;
     private final EntityManager em;
@@ -109,6 +110,7 @@ public class ReplacementQueueManager {
     private void match(ReplacementRequest r) {
         requireTrade(r);
         r.setFailureReason(null); r.setStatus(ReplacementStatus.MATCHING);
+        queueService.synchronizeTradeCandidates();
         var entries=queue.findBySkillIdAndStatusOrderByJoinedAtAscIdAsc(r.getPlacement().getSkill().getId(),QueueStatus.QUEUED);
         // Lock candidate IDs in one stable order even when different skill queues overlap.
         entries.stream().map(e->e.getCandidate().getId()).distinct().sorted().forEach(id->{ var c=candidates.findByIdForUpdate(id).orElseThrow(CandidateService::missing); em.refresh(c); });
@@ -135,6 +137,7 @@ public class ReplacementQueueManager {
         for(var e:entries) { e.setStatus(QueueStatus.QUEUED); e.setReservedAt(null); } queue.flush();
         for(var e:entries) if(!eligibility.check(c.getId(),e.getSkill().getId()).eligible()) { e.setStatus(QueueStatus.EXITED); e.setExitReason("No longer eligible after reservation release"); }
         r.setSelectedCandidate(null); queue.flush();
+        queueService.synchronize(c.getId());
     }
     private boolean legacyTechFailure(ReplacementRequest r) {
         return r.getPlacement().getCandidate().getCandidateType()==CandidateType.TECH

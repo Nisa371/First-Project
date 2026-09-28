@@ -4,7 +4,7 @@ import type { Profile } from './api'
 export function hasBasicProfile(profile: Profile) {
   return [profile.fullName, profile.phone, profile.location, profile.bio,
     profile.experienceSummary, profile.profilePhotoUrl,
-    profile.candidateType === 'TRADE' ? profile.primaryTradeCategory : profile.educationSummary,
+    ...(profile.candidateType === 'TECH' ? [profile.educationSummary] : []),
   ].every(value => Boolean(value?.trim()))
 }
 

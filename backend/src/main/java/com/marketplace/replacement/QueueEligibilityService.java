@@ -1,7 +1,6 @@
 package com.marketplace.replacement;
 
 import com.marketplace.candidate.*;
-import com.marketplace.assessment.*;
 import com.marketplace.verification.*;
 import com.marketplace.placement.*;
 import com.marketplace.user.*;
@@ -18,7 +17,6 @@ public class QueueEligibilityService {
     private final CandidateProfileRepository candidates;
     private final CandidateSkillRepository skills;
     private final VerificationChecklist verifications;
-    private final EvaluationRepository evaluations;
     private final WaitingListEntryRepository queue;
     private final PlacementRepository placements;
     public record Check(String code, boolean passed) {}
@@ -32,14 +30,7 @@ public class QueueEligibilityService {
         checks.add(new Check("VERIFIED","VERIFIED".equals(verifications.candidateStatus(candidateId))));
         var tradeSkills=skills.findByCandidateId(candidateId).stream().filter(s->s.getSkill().isActive() && "TRADE".equals(s.getSkill().getCategory()))
             .filter(s->requiredSkillId==null || s.getSkill().getId().equals(requiredSkillId)).toList();
-        checks.add(new Check("TRADE_SKILL",c.getPrimaryTradeCategory()!=null && !c.getPrimaryTradeCategory().isBlank() && !tradeSkills.isEmpty()));
-        // General TRADE reviews apply to all trades; skill-specific reviews only to that skill.
-        // Latest relevant released evaluation wins so an old positive result cannot override a newer negative result.
-        var latest=evaluations.findByAttemptCandidateIdAndReleasedTrue(candidateId).stream()
-            .filter(e->e.getAttempt().getAssessment().getCandidateType()==CandidateType.TRADE)
-            .filter(e->e.getAttempt().getAssessment().getSkill()==null || tradeSkills.stream().anyMatch(s->s.getSkill().getId().equals(e.getAttempt().getAssessment().getSkill().getId())))
-            .max(Comparator.comparing((Evaluation e)->e.getAttempt().getId()).thenComparing(Evaluation::getId));
-        checks.add(new Check("HIRE_READY",latest.map(e->e.getRecommendation()==Recommendation.HIRE_READY).orElse(false)));
+        checks.add(new Check("TRADE_SKILL",!tradeSkills.isEmpty()));
         checks.add(new Check("AVAILABLE",c.getAvailability()==Availability.AVAILABLE));
         checks.add(new Check("NOT_RESERVED",!queue.existsByCandidateIdAndStatus(candidateId,QueueStatus.RESERVED)));
         checks.add(new Check("NO_ACTIVE_PLACEMENT",!placements.existsByCandidateIdAndStatusIn(candidateId,List.of(PlacementStatus.PENDING,PlacementStatus.ACTIVE))));

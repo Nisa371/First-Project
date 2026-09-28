@@ -10,6 +10,9 @@ import jakarta.persistence.LockModeType;
 public interface CandidateProfileRepository extends JpaRepository<CandidateProfile, Long>, org.springframework.data.jpa.repository.JpaSpecificationExecutor<CandidateProfile> {
     Optional<CandidateProfile> findByUserId(Long userId);
 
+    @Query("select c.id from CandidateProfile c where c.candidateType = :type order by c.id")
+    java.util.List<Long> findIdsByCandidateType(@Param("type") CandidateType type);
+
     // Lock the candidate before multi-skill reservation or placement changes.
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select c from CandidateProfile c where c.id = :id")

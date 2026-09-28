@@ -4,8 +4,7 @@ import { CvPreviewPage } from '../features/cv/CvPreviewPage'
 import { DemoPaymentPage } from '../features/payment/DemoPaymentPage'
 import { MyApplicationsPage, ApplicationDetailPage } from '../features/marketplace/ApplicationsPage'
 import { CandidateJobsPage, CandidateJobPage } from '../features/marketplace/ExploreJobsPage'
-import { PlacementsPage, ReplacementsPage, QueuePage, AdminQueuePage, NotificationsPage } from '../features/placement/ManagedPages'
-import { TradeOnboardingPage } from '../features/trade/TradeOnboardingPage'
+import { PlacementsPage, ReplacementsPage, AdminQueuePage, NotificationsPage } from '../features/placement/ManagedPages'
 import { VerificationPage, VerificationQueuePage, VerificationReviewPage } from '../features/trade/VerificationPages'
 import { EvaluatorDashboard, EvaluationPage } from '../features/assessment/EvaluatorPages'
 import { BookingPage } from '../features/assessment/BookingPage'
@@ -18,7 +17,7 @@ import { AuthPage } from '../features/auth/AuthPage'
 import { ProtectedRoute } from '../features/auth/ProtectedRoute'
 import { AdminPage, TrainingPage } from '../components/LazyPages'
 import type { Role } from '../features/auth/types'
-import { createBrowserRouter } from 'react-router'
+import { createBrowserRouter, Navigate } from 'react-router'
 import { AppLayout } from '../layouts/AppLayout'
 import { HomePage } from '../pages/HomePage'
 import { NotFoundPage } from '../pages/NotFoundPage'
@@ -32,7 +31,7 @@ export const router = createBrowserRouter([
       element: <ProtectedRoute role={role} />,
       children: [{ path: `/${role.toLowerCase()}/dashboard`, element: role === 'CANDIDATE' ? <CandidateDashboard /> : role === 'EMPLOYER' ? <EmployerDashboard /> : role === 'EVALUATOR' ? <EvaluatorDashboard /> : <AdminPage /> }],
     })),
-    { element: <ProtectedRoute role="CANDIDATE" />, children: [{ path: '/candidate/applications/:id', element: <ApplicationDetailPage /> }, { path: '/candidate/applications/:id/assessment', element: <ApplicationAssessmentPage /> }, { path: '/candidate/cv', element: <CvBuilderPage /> }, { path: '/candidate/cv/preview', element: <CvPreviewPage /> }, { path: '/candidate/payments/:id', element: <DemoPaymentPage /> }, { path: '/candidate/jobs', element: <CandidateJobsPage /> }, { path: '/candidate/jobs/:id', element: <CandidateJobPage /> }, { path: '/candidate/applications', element: <MyApplicationsPage /> }, { path: '/candidate/onboarding', element: <TradeOnboardingPage /> }, { path: '/candidate/verification', element: <VerificationPage /> }, { path: '/candidate/profile', element: <CandidateProfilePage /> }, { path: '/candidate/bookings', element: <BookingPage /> }] },
+    { element: <ProtectedRoute role="CANDIDATE" />, children: [{ path: '/candidate/applications/:id', element: <ApplicationDetailPage /> }, { path: '/candidate/applications/:id/assessment', element: <ApplicationAssessmentPage /> }, { path: '/candidate/cv', element: <CvBuilderPage /> }, { path: '/candidate/cv/preview', element: <CvPreviewPage /> }, { path: '/candidate/payments/:id', element: <DemoPaymentPage /> }, { path: '/candidate/jobs', element: <CandidateJobsPage /> }, { path: '/candidate/jobs/:id', element: <CandidateJobPage /> }, { path: '/candidate/applications', element: <MyApplicationsPage /> }, { path: '/candidate/onboarding', element: <Navigate to="/candidate/profile" replace /> }, { path: '/candidate/verification', element: <VerificationPage /> }, { path: '/candidate/profile', element: <CandidateProfilePage /> }, { path: '/candidate/bookings', element: <BookingPage /> }] },
     { element: <ProtectedRoute role="EMPLOYER" />, children: [
       { path: '/employer/jobs/:jobId/applications/:id/cv/:candidateId', element: <CvPreviewPage /> },
       { path: '/employer/jobs/:jobId/applications/:id/assessment', element: <EmployerAssessmentPage /> },
@@ -50,7 +49,7 @@ export const router = createBrowserRouter([
       ...(role !== 'EMPLOYER' ? [{ path: `/${role.toLowerCase()}/training`, element: <TrainingPage /> }] : []),
       ...(role !== 'EVALUATOR' ? [{ path: `/${role.toLowerCase()}/placements`, element: <PlacementsPage /> }] : []),
       ...(['EMPLOYER', 'ADMIN'].includes(role) ? [{ path: `/${role.toLowerCase()}/replacements`, element: <ReplacementsPage /> }] : []),
-      ...(role === 'CANDIDATE' ? [{ path: '/candidate/queue', element: <QueuePage /> }] : []),
+      ...(role === 'CANDIDATE' ? [{ path: '/candidate/queue', element: <Navigate to="/candidate/profile" replace /> }] : []),
       ...(role === 'ADMIN' ? [{ path: '/admin/queue', element: <AdminQueuePage /> }] : []),
     ] })),
     { path: '*', element: <NotFoundPage /> },
