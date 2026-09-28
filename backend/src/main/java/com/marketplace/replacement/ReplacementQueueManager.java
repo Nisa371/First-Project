@@ -48,7 +48,7 @@ public class ReplacementQueueManager {
         if(p.getGuaranteeExpiresAt()==null) throw conflict("This placement has no stored guarantee deadline.");
         if(!now.isBefore(p.getGuaranteeExpiresAt())) throw conflict("Your free replacement guarantee has expired. Create a new job post to hire another candidate.");
         var existing=requests.findByPlacementIdAndActiveRequestTrue(placementId);
-        if(existing.isPresent()) return view(existing.get());
+        if(existing.isPresent()) throw conflict("A replacement request is already active for this placement. View or cancel the existing request before creating another.");
         var r=new ReplacementRequest(); r.setPlacement(p); r.setEmployer(p.getEmployer()); r.setReason(reason.trim());
         r.setRequestedAt(now);
         boolean tech=p.getCandidate().getCandidateType()==CandidateType.TECH;
@@ -81,10 +81,14 @@ public class ReplacementQueueManager {
     public View cancel(Long id) {
         lockMatching(); var r=owned(id);
         if(r.getStatus()==ReplacementStatus.CANCELLED) return view(r);
-        if(r.getStatus()==ReplacementStatus.COMPLETED || r.getStatus()==ReplacementStatus.FAILED) throw conflict("This request is already resolved.");
+        if(r.getStatus()==ReplacementStatus.COMPLETED || (r.getStatus()==ReplacementStatus.FAILED && !legacyTechFailure(r))) throw conflict("This request is already resolved.");
+        // Historical failed requests no longer own any queue reservation.
+        boolean releaseReservation=r.getStatus()!=ReplacementStatus.FAILED;
         if(r.getFreeReplacementJob()!=null) r.getFreeReplacementJob().setStatus(com.marketplace.job.JobStatus.CLOSED);
         r.setStatus(ReplacementStatus.CANCELLED); r.setFailureReason(null);
-        publish(r,"REPLACEMENT_CANCELLED","Replacement cancelled"); release(r); return view(r);
+        publish(r,"REPLACEMENT_CANCELLED","Replacement cancelled");
+        if(releaseReservation) release(r);
+        return view(r);
     }
     @PreAuthorize("hasRole('EMPLOYER')")
     public View retry(Long id) {
@@ -132,6 +136,11 @@ public class ReplacementQueueManager {
         for(var e:entries) if(!eligibility.check(c.getId(),e.getSkill().getId()).eligible()) { e.setStatus(QueueStatus.EXITED); e.setExitReason("No longer eligible after reservation release"); }
         r.setSelectedCandidate(null); queue.flush();
     }
+    private boolean legacyTechFailure(ReplacementRequest r) {
+        return r.getPlacement().getCandidate().getCandidateType()==CandidateType.TECH
+            && r.getStatus()==ReplacementStatus.FAILED
+            && "No eligible candidates are currently available in this skill queue.".equals(r.getFailureReason());
+    }
     private void requireTrade(ReplacementRequest r) {
         if(r.getPlacement().getCandidate().getCandidateType()!=CandidateType.TRADE) throw conflict("Tech replacements use the free replacement job and normal hiring workflow.");
     }
@@ -160,7 +169,9 @@ public class ReplacementQueueManager {
     private boolean visible(ReplacementRequest r,User u) { return u.getRole()==Role.ADMIN || (u.getRole()==Role.EMPLOYER && r.getEmployer().getUser().getId().equals(u.getId())); }
     public View view(ReplacementRequest r) {
         var c=r.getSelectedCandidate();
+        boolean tech=r.getPlacement().getCandidate().getCandidateType()==CandidateType.TECH;
+        String failureReason=legacyTechFailure(r) ? "This legacy Tech request used queue matching. Cancel it or start a new request from the placement while its guarantee is valid." : r.getFailureReason();
         var sla=r.getPlacement().getCandidate().getCandidateType()==CandidateType.TECH || r.getTargetCompletionAt()==null || r.getStatus()==ReplacementStatus.CANCELLED ? null : r.getSlaStatus()==SlaStatus.PENDING && Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS).isAfter(r.getTargetCompletionAt())?SlaStatus.BREACHED:r.getSlaStatus();
-        return new View(r.getId(),placementService.view(r.getPlacement()),r.getReason(),r.getStatus(),c==null?null:new Selected(c.getId(),c.getFullName(),c.getLocation(),r.getPlacement().getSkill().getName()),r.getReplacementPlacement()==null?null:r.getReplacementPlacement().getId(),r.getRequestedAt(),r.getTargetCompletionAt(),r.getActualCompletionAt(),sla,r.getFailureReason(),r.getFreeReplacementJob()==null?null:r.getFreeReplacementJob().getId());
+        return new View(r.getId(),placementService.view(r.getPlacement()),r.getReason(),r.getStatus(),c==null?null:new Selected(c.getId(),c.getFullName(),c.getLocation(),r.getPlacement().getSkill().getName()),r.getReplacementPlacement()==null?null:r.getReplacementPlacement().getId(),r.getRequestedAt(),tech?null:r.getTargetCompletionAt(),r.getActualCompletionAt(),sla,failureReason,r.getFreeReplacementJob()==null?null:r.getFreeReplacementJob().getId());
     }
 }

@@ -33,7 +33,14 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
-    ResponseEntity<ApiError> conflict(HttpServletRequest request) {
+    ResponseEntity<ApiError> conflict(DataIntegrityViolationException ex, HttpServletRequest request) {
+        for (Throwable cause = ex; cause != null; cause = cause.getCause()) {
+            if (cause instanceof org.hibernate.exception.ConstraintViolationException violation
+                    && violation.getConstraintName() != null
+                    && violation.getConstraintName().contains("uk_replacement_active_placement")) {
+                return response(409, "ACTIVE_REPLACEMENT", "A replacement request is already active for this placement. View or cancel the existing request before creating another.", request);
+            }
+        }
         return response(409, "CONFLICT", "This record already exists or conflicts with existing data.", request);
     }
 

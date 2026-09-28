@@ -1,7 +1,8 @@
--- Apply once to an existing MySQL database before starting the updated application,
+-- Safe to rerun on an existing MySQL database before starting the updated application,
 -- including development databases: Hibernate update does not replace old CHECK rules.
 -- Stop application writes while applying this migration. Fresh Hibernate-created schemas need no migration.
 DELIMITER //
+DROP PROCEDURE IF EXISTS migrate_replacement_workflow//
 CREATE PROCEDURE migrate_replacement_workflow()
 BEGIN
     DECLARE finished BOOLEAN DEFAULT FALSE;
@@ -25,17 +26,29 @@ BEGIN
         DEALLOCATE PREPARE replacement_stmt;
     END LOOP;
     CLOSE checks_to_drop;
+    ALTER TABLE replacement_requests
+        MODIFY COLUMN status ENUM('REQUESTED','MATCHING','CANDIDATE_SELECTED','ACCEPTED','COMPLETED','FAILED','WAITING_FOR_CANDIDATE','HIRING','CANCELLED') NOT NULL,
+        MODIFY COLUMN target_completion_at DATETIME(6) NULL;
+    -- Hibernate may already have added this column/index/FK without updating old constraints.
+    IF NOT EXISTS (SELECT 1 FROM information_schema.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'replacement_requests' AND COLUMN_NAME = 'free_replacement_job_id') THEN
+        ALTER TABLE replacement_requests ADD COLUMN free_replacement_job_id BIGINT NULL;
+    END IF;
+    IF NOT EXISTS (SELECT INDEX_NAME FROM information_schema.STATISTICS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'replacement_requests' AND NON_UNIQUE = 0
+        GROUP BY INDEX_NAME HAVING GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) = 'free_replacement_job_id') THEN
+        ALTER TABLE replacement_requests ADD CONSTRAINT uk_replacement_free_job UNIQUE (free_replacement_job_id);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.KEY_COLUMN_USAGE
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'replacement_requests'
+          AND COLUMN_NAME = 'free_replacement_job_id' AND REFERENCED_TABLE_NAME = 'jobs') THEN
+        ALTER TABLE replacement_requests ADD CONSTRAINT fk_replacement_free_job
+            FOREIGN KEY (free_replacement_job_id) REFERENCES jobs(id);
+    END IF;
 END//
 DELIMITER ;
 CALL migrate_replacement_workflow();
 DROP PROCEDURE migrate_replacement_workflow;
-
-ALTER TABLE replacement_requests
-    MODIFY COLUMN status ENUM('REQUESTED','MATCHING','CANDIDATE_SELECTED','ACCEPTED','COMPLETED','FAILED','WAITING_FOR_CANDIDATE','HIRING','CANCELLED') NOT NULL,
-    MODIFY COLUMN target_completion_at DATETIME(6) NULL,
-    ADD COLUMN free_replacement_job_id BIGINT NULL,
-    ADD CONSTRAINT uk_replacement_free_job UNIQUE (free_replacement_job_id),
-    ADD CONSTRAINT fk_replacement_free_job FOREIGN KEY (free_replacement_job_id) REFERENCES jobs(id);
 
 UPDATE replacement_requests
 SET status = 'CANCELLED', failure_reason = NULL, active_request = NULL, version = version + 1
