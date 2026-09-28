@@ -18,7 +18,8 @@ export function PlacementsPage() {
 
   const { user } = useAuth(), employer = user?.role === 'EMPLOYER'
   const state = useLoad(placementsLoader)
-  const [now] = useState(Date.now)
+  const [now, setNow] = useState(Date.now)
+  useEffect(() => { const timer = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(timer) }, [])
   const [selected, setSelected] = useState<Placement | null>(null), [reason, setReason] = useState(''), [busy, setBusy] = useState(false), [error, setError] = useState('')
   const [ending, setEnding] = useState<{ p: Placement; action: string } | null>(null)
   async function request() {
@@ -37,7 +38,18 @@ export function PlacementsPage() {
     <div className="grid gap-5 lg:grid-cols-2">{state.data[0].map(p => {
       const activeRequest = state.data?.[1].some(r => r.placement.id === p.id && !['FAILED', 'COMPLETED'].includes(r.status))
       const covered = p.guaranteeEligible && p.guaranteeExpiresAt && new Date(p.guaranteeExpiresAt).getTime() > now
-      return <article key={p.id} className="surface"><div className="mb-5 flex flex-wrap items-center justify-between gap-3"><p className="eyebrow">{tr("Placement #")}{' '}{p.id}</p><Chip value={p.status} /></div><h2 className="text-2xl font-bold">{p.candidateName}</h2><p className="mt-2 text-slate-600">{p.skill} · {p.company}</p><p className="mt-2 text-sm text-slate-500">{p.job}{' '}{tr("· Started")}{' '}{p.startDate}</p><div className="my-5 rounded-xl bg-slate-50 p-4 text-sm">{covered ? <><strong className="text-emerald-800">{tr("30-day managed TRADE coverage")}</strong><p className="mt-1">{tr("Expires")}{' '}{dateTime(p.guaranteeExpiresAt!)}</p></> : <p>{p.guaranteeEligible ? tr("The guarantee window has ended.") : tr("Standard placement · no replacement guarantee")}</p>}</div>{employer && p.status === 'ACTIVE' && <div className="flex flex-wrap gap-2"><button className="button-primary" disabled={!covered || activeRequest} onClick={() => { setError(''); setSelected(p) }}>{activeRequest ? 'Replacement in progress' : 'Request replacement'}</button><button className="button-secondary" disabled={activeRequest} onClick={() => { setError(''); setEnding({ p, action: 'complete' }) }}>{tr("Complete")}</button><button className="button-secondary" disabled={activeRequest} onClick={() => { setError(''); setEnding({ p, action: 'terminate' }) }}>Terminate</button></div>}</article>
+      const unavailable = p.status !== 'ACTIVE' ? `${words(p.status)} placements are not eligible for replacement.`
+        : activeRequest ? 'A replacement request is already in progress.'
+        : !p.guaranteeEligible ? 'No replacement guarantee is included with this placement.'
+        : !p.guaranteeExpiresAt ? 'This placement has no stored guarantee deadline.'
+        : !covered ? `Replacement guarantee expired on ${dateTime(p.guaranteeExpiresAt)}.` : null
+      return <article key={p.id} className="surface">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3"><p className="eyebrow">{tr("Placement #")} {p.id}</p><Chip value={p.status} /></div>
+        <h2 className="text-2xl font-bold">{p.candidateName}</h2><p className="mt-2 text-slate-600">{p.skill} · {p.company}</p><p className="mt-2 text-sm text-slate-500">{p.job} · {tr("Started")} {p.startDate}</p>
+        <div className="my-5 rounded-xl bg-slate-50 p-4 text-sm">{p.guaranteeEligible ? <><strong>{tr("Replacement guarantee")}</strong>{p.guaranteeExpiresAt && <p className="mt-1">{tr("Valid until")}: {dateTime(p.guaranteeExpiresAt)}</p>}</> : <p>{tr("Standard placement · no replacement guarantee")}</p>}</div>
+        {employer && unavailable && <p className="mb-4 text-sm text-slate-600">{tr(unavailable)}</p>}
+        {employer && p.status === 'ACTIVE' && <div className="flex flex-wrap gap-2">{!unavailable && <button className="button-primary" onClick={() => { setError(''); setSelected(p) }}>Request replacement</button>}<button className="button-secondary" disabled={activeRequest} onClick={() => { setError(''); setEnding({ p, action: 'complete' }) }}>{tr("Complete")}</button><button className="button-secondary" disabled={activeRequest} onClick={() => { setError(''); setEnding({ p, action: 'terminate' }) }}>Terminate</button></div>}
+      </article>
     })}</div><div className="mt-8"><Link className="button-secondary" to={`/${user?.role.toLowerCase()}/replacements`}>{tr("View replacement timelines →")}</Link></div>
   </>}{selected && <Modal title="Request a replacement" close={() => { if (!busy) setSelected(null) }}><form onSubmit={e => { e.preventDefault(); void request() }}><p className="mb-5 text-sm leading-relaxed text-slate-600">Replace {selected.candidateName}{' '}{tr("for")}{' '}{selected.skill}. We will check eligible workers in queue order and begin a 24-hour operational target. Availability is confirmed before activation.</p><Field name="reason" label="Reason for replacement" value={reason} onChange={setReason} required multiline maxLength={2000} /><div className="mt-4"><Feedback error={error} /></div><div className="mt-5 flex flex-wrap gap-3"><button disabled={busy || !reason.trim()} className="button-primary">{busy ? 'Finding a candidate…' : 'Request & find candidate'}</button><button type="button" disabled={busy} className="button-secondary" onClick={() => setSelected(null)}>{tr("Cancel")}</button></div></form></Modal>}{ending && <Modal title={`${ending.action === 'complete' ? tr("Complete") : 'Terminate'} placement?`} close={() => { if (!busy) setEnding(null) }}><p className="mb-5 text-slate-600">This ends the active placement for {ending.p.candidateName}. This action cannot be undone.</p><Feedback error={error} /><div className="flex gap-3"><button className="button-primary" disabled={busy} onClick={() => void end()}>{busy ? tr("Saving…") : 'Confirm'}</button><button className="button-secondary" disabled={busy} onClick={() => setEnding(null)}>Go back</button></div></Modal>}</Workspace>
 }

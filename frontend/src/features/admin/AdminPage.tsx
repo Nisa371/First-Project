@@ -1,3 +1,4 @@
+import { ReplacementGuaranteeSettings } from './ReplacementGuaranteeSettings'
 import { useUnreadNotifications } from '../placement/useUnreadNotifications'
 import { VerificationRequirements } from '../verification/VerificationRequirements'
 import { VerificationReviews } from '../verification/VerificationReviews'
@@ -51,7 +52,8 @@ export function AdminPage() {
         <Link className="underline underline-offset-4" to="/admin/dashboard?tab=Bookings">{state.data.pendingBookings} bookings awaiting payment →</Link>
       </div>
     </>}
-    <nav className="flex flex-wrap gap-2" aria-label="Admin sections">{[...Object.keys(sections), 'Company types', 'Verifications', 'Verification requirements'].map(t => <button key={t} aria-pressed={tab === t} className={tab === t ? 'button-primary' : 'button-secondary'} onClick={() => setTab(t)}>{t}</button>)}</nav>
+    <nav className="flex flex-wrap gap-2" aria-label="Admin sections">{[...Object.keys(sections), 'Company types', 'Verifications', 'Verification requirements', 'Marketplace settings'].map(t => <button key={t} aria-pressed={tab === t} className={tab === t ? 'button-primary' : 'button-secondary'} onClick={() => setTab(t)}>{t}</button>)}</nav>
+    {tab === 'Marketplace settings' && <ReplacementGuaranteeSettings />}
     {sections[tab] && <AdminRecords key={tab} section={sections[tab]} changed={state.reload} />}
     {tab === 'Verifications' && <VerificationReviews key={reviewRole} initialRole={reviewRole} changed={state.reload} />}{tab === 'Verification requirements' && <VerificationRequirements />}{tab === 'Company types' && <CompanyTypeManagement />}
   </div></Workspace>

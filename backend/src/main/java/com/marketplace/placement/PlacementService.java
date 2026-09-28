@@ -19,6 +19,7 @@ import java.util.*;
 @Transactional
 public class PlacementService {
     private final PlacementRepository placements;
+    private final ReplacementGuaranteePolicyService guaranteePolicy;
     private final CandidateProfileRepository candidates;
     private final CandidateSkillRepository skills;
     private final JobRepository jobs;
@@ -37,10 +38,12 @@ public class PlacementService {
         return placements.findAll().stream().filter(p->u.getRole()==Role.ADMIN || p.getCandidate().getUser().getId().equals(u.getId()) || p.getEmployer().getUser().getId().equals(u.getId())).map(this::view).toList();
     }
     @PreAuthorize("hasRole('EMPLOYER')")
-    public PlacementView create(Long jobId, Long candidateId) {
+    public PlacementView create(Long jobId, Long candidateId, boolean guaranteed) {
         var u=current.requireActive();
         var j=jobs.findOwnedForUpdate(jobId,u.getId()).orElseThrow(CandidateService::missing);
         var c=candidates.findByIdForUpdate(candidateId).orElseThrow(CandidateService::missing);
+        if(placements.existsByJobIdAndCandidateId(jobId,candidateId))
+            throw conflict("This applicant has already been hired for this job. View the existing placement.");
         if(j.getStatus()!=JobStatus.ACTIVE || j.getRequiredSkill()==null || !j.getRequiredSkill().isActive()
             || !applications.existsByJobIdAndCandidateIdAndStatus(jobId,candidateId,ApplicationStatus.SHORTLISTED)
             || !shortlists.existsByJobIdAndCandidateId(jobId,candidateId) || c.getCandidateType()!=j.getCandidateType()
@@ -52,14 +55,14 @@ public class PlacementService {
         if(c.getCandidateType()==CandidateType.TRADE && !eligibility.check(candidateId,j.getRequiredSkill().getId()).eligible())
             throw conflict("TRADE placement requires verified, hire-ready eligibility.");
         var p=new Placement(); p.setCandidate(c); p.setEmployer(j.getEmployer()); p.setJob(j); p.setSkill(j.getRequiredSkill());
+        p.setGuaranteeEligible(guaranteed);
         activate(p,Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS));
         events.publishEvent(new MarketplaceEvent(u, "PLACEMENT_CREATED", "PLACEMENT",p.getId(),List.of(u,c.getUser()),"Placement active", "Your placement in "+p.getSkill().getName()+" is now active."));
         return view(p);
     }
     public void activate(Placement p, Instant now) {
         p.setStatus(PlacementStatus.ACTIVE); p.setStartDate(LocalDate.ofInstant(now,ZoneOffset.UTC));
-        p.setGuaranteeEligible(p.getCandidate().getCandidateType()==CandidateType.TRADE);
-        p.setGuaranteeExpiresAt(p.isGuaranteeEligible()?now.plus(Duration.ofDays(30)):null);
+        p.setGuaranteeExpiresAt(p.isGuaranteeEligible()?p.getStartDate().plusDays(guaranteePolicy.days()).atStartOfDay(ZoneOffset.UTC).toInstant():null);
         placements.saveAndFlush(p);
         for(var e:queue.findByCandidateIdAndStatusIn(p.getCandidate().getId(),List.of(QueueStatus.QUEUED,QueueStatus.RESERVED))) {
             e.setStatus(QueueStatus.EXITED); e.setExitReason("Placement activated");

@@ -41,7 +41,10 @@ public class ReplacementQueueManager {
         var p=placements.findByIdForUpdate(placementId).orElseThrow(CandidateService::missing);
         current.requireOwner(p.getEmployer().getUser().getId());
         var now=Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
-        if(p.getStatus()!=PlacementStatus.ACTIVE || !p.isGuaranteeEligible() || p.getGuaranteeExpiresAt()==null || !now.isBefore(p.getGuaranteeExpiresAt())) throw conflict("This placement has no active replacement coverage.");
+        if(p.getStatus()!=PlacementStatus.ACTIVE) throw conflict("Only active placements are eligible for replacement.");
+        if(!p.isGuaranteeEligible()) throw conflict("No replacement guarantee is included with this placement.");
+        if(p.getGuaranteeExpiresAt()==null) throw conflict("This placement has no stored guarantee deadline.");
+        if(!now.isBefore(p.getGuaranteeExpiresAt())) throw conflict("Replacement guarantee expired on " + p.getGuaranteeExpiresAt() + ".");
         if(requests.findByPlacementIdAndActiveRequestTrue(placementId).isPresent()) throw conflict("A replacement request is already active.");
         var r=new ReplacementRequest(); r.setPlacement(p); r.setEmployer(p.getEmployer()); r.setReason(reason.trim());
         r.setRequestedAt(now); r.setTargetCompletionAt(now.plus(Duration.ofHours(24))); requests.saveAndFlush(r);
@@ -62,6 +65,7 @@ public class ReplacementQueueManager {
         lockMatching(); var r=owned(id); if(r.getStatus()!=ReplacementStatus.ACCEPTED) throw conflict("Confirm the selected candidate before activation.");
         if(!stillEligible(r)) { release(r); match(r); return view(r); }
         var now=Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS); var p=new Placement(); p.setCandidate(r.getSelectedCandidate()); p.setEmployer(r.getEmployer()); p.setJob(r.getPlacement().getJob()); p.setSkill(r.getPlacement().getSkill());
+        p.setGuaranteeEligible(r.getPlacement().isGuaranteeEligible());
         placementService.activate(p,now); r.getPlacement().setStatus(PlacementStatus.REPLACED);
         r.setReplacementPlacement(p); r.setStatus(ReplacementStatus.COMPLETED); r.setActualCompletionAt(now);
         r.setSlaStatus(now.isAfter(r.getTargetCompletionAt())?SlaStatus.BREACHED:SlaStatus.ON_TIME);
