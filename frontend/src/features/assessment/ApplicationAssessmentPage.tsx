@@ -17,7 +17,7 @@ function providerMessage(code: string | null) {
   if (!code) return ''
   if (code === 'AI_PROVIDER_NOT_CONFIGURED') return 'The AI interview provider is not configured yet. Please return when the service is available.'
   if (code === 'INVALID_AI_RESPONSE') return 'The interview service returned an unusable response. Please contact the platform team.'
-  return 'The interview service is temporarily unavailable. Your saved conversation is safe.'
+  return 'The AI service is temporarily unavailable. Please try again. Your saved conversation is safe.'
 }
 function Transcript({ messages }: { messages: Message[] }) {
   const tr = useTradeText()
@@ -42,22 +42,21 @@ export function ApplicationAssessmentPage() {
     pending.current = true; setBusy(true); setError('')
     try {
       const { data } = start
-        ? await api.post<Session>(`/candidate/applications/${id}/assessment/start`)
-        : await api.post<Session>(`/candidate/assessment/${s.id}/messages`, { response: answer }, { params: { expectedTurn: s.currentTurn } })
+        ? await api.post<Session>(`/candidate/applications/${id}/assessment/start`, undefined, { timeout: 40000 })
+        : await api.post<Session>(`/candidate/assessment/${s.id}/messages`, { response: answer }, { params: { expectedTurn: s.currentTurn }, timeout: 40000 })
       state.setData(data)
       if (data.currentTurn > s.currentTurn) setAnswer('')
     } catch (e) {
-      setError(apiFailure(e).message + tr(" Refresh the conversation before trying again. Your typed answer is retained."))
-      state.reload()
+      setError(apiFailure(e).message)
     } finally { pending.current = false; setBusy(false) }
   }
   return <Workspace title={s?.jobTitle ?? tr("Job assessment")} subtitle={tr("A job-specific interview. Answer in your own words; typing is always available.")}>
     <Link className="mb-5 inline-block font-semibold text-indigo-700" to={`/candidate/applications/${id}`}>{tr("← Application details")}</Link>
-    <LoadState {...state} /><Feedback error={error} />
+    {!error && <LoadState {...state} />}<Feedback error={error} />
     {s && <div className="mx-auto max-w-3xl space-y-6" aria-busy={busy}>
       <section className="surface"><div className="flex flex-wrap items-center justify-between gap-3"><span className="badge">{tr(assessmentLabel(s.status))}</span><span className="text-sm text-slate-600">{s.currentTurn} / {s.maxTurns}{' '}{tr("answers")}</span></div>
         <progress className="mt-4 h-2 w-full accent-indigo-600" value={s.currentTurn} max={s.maxTurns} aria-label={tr("Assessment progress")} />
-        {s.failureCode && <p role="status" className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">{tr(providerMessage(s.failureCode))}{' '}{s.canAnswer && tr(" Your latest answer was not submitted; you can edit it and retry.")}</p>}
+        {!error && s.failureCode && <p role="status" className="mt-4 rounded-xl bg-amber-50 p-4 text-sm text-amber-900">{tr(providerMessage(s.failureCode))}{' '}{s.canAnswer && tr(" Your latest answer was not submitted; you can edit it and retry.")}</p>}
         {s.status === 'COMPLETED' && <p role="status" className="mt-4 text-emerald-800">{tr("Assessment completed. Your responses have been submitted for this application.")}</p>}
         {s.status === 'FAILED' && <p role="status" className="mt-4 text-slate-700">{tr("Your interview is submitted. Evaluation could not finish; the employer can review its status. Answers are now locked.")}</p>}
         {!s.canStart && !s.canAnswer && !s.completedAt && <p className="mt-4 text-sm text-slate-600">{tr("This application is not currently eligible for an assessment.")}</p>}
@@ -71,7 +70,7 @@ export function ApplicationAssessmentPage() {
           <button className="button-primary w-full sm:w-auto" disabled={busy || !answer.trim()}>{busy ? tr("Processing answer…") : tr("Send answer")}</button>
         </fieldset>
       </form>}
-      <button className="button-secondary" disabled={busy} onClick={state.reload}>{tr("Refresh conversation")}</button>
+      <button className="button-secondary" disabled={busy} onClick={() => { setError(''); state.reload() }}>{tr("Refresh conversation")}</button>
     </div>}
   </Workspace>
 }
@@ -84,18 +83,18 @@ export function EmployerAssessmentPage() {
   async function retry() {
     if (busy) return
     setBusy(true); setError('')
-    try { state.setData((await api.post<Review>(`/employer/applications/${id}/assessment/retry-evaluation`)).data) }
+    try { state.setData((await api.post<Review>(`/employer/applications/${id}/assessment/retry-evaluation`, undefined, { timeout: 40000 })).data) }
     catch (e) { setError(apiFailure(e).message) } finally { setBusy(false) }
   }
   const review = state.data, s = review?.session
   return <Workspace title={s?.jobTitle ?? 'Assessment review'} subtitle="Read-only interview transcript and application-specific evaluation.">
     <Link className="mb-5 inline-block font-semibold text-indigo-700" to={`/employer/jobs/${jobId}/applications/${id}`}>← Applicant details</Link>
-    <LoadState {...state} /><Feedback error={error} />
+    {!error && <LoadState {...state} />}<Feedback error={error} />
     {s && review && <div className="mx-auto max-w-3xl space-y-6"><section className="surface space-y-4"><span className="badge">{tr(assessmentLabel(s.status))}</span>
       <p className="text-lg font-bold">Assessment score: {review.assessmentScore === null ? 'Not evaluated' : review.assessmentScore.toFixed(2)}</p>
       {s.startedAt && <p className="text-sm text-slate-500">{tr("Started")}{' '}{new Date(s.startedAt).toLocaleString()}</p>}{s.completedAt && <p className="text-sm text-slate-500">{tr("Submitted")}{' '}{new Date(s.completedAt).toLocaleString()}</p>}
       {review.summary && <p className="whitespace-pre-wrap break-words text-slate-700">{review.summary}</p>}
-      {s.failureCode && <p role="status" className="text-sm text-amber-800">{tr(providerMessage(s.failureCode))}</p>}
+      {!error && s.failureCode && <p role="status" className="text-sm text-amber-800">{tr(providerMessage(s.failureCode))}</p>}
       {s.status === 'FAILED' && s.failureCode !== 'INVALID_AI_RESPONSE' && <button className="button-secondary" disabled={busy} onClick={() => void retry()}>{busy ? 'Evaluating…' : 'Retry final evaluation'}</button>}
     </section>{s.messages.length ? <Transcript messages={s.messages} /> : <Empty title="Assessment not started">No interview messages have been submitted yet.</Empty>}</div>}
   </Workspace>

@@ -25,7 +25,7 @@ export function ApplicationDetailPage() {
     <LoadState {...state} />
     {state.error && <button className="button-secondary" onClick={state.reload}>{tr('Try again')}</button>}
     {a && <div className="grid items-start gap-5 lg:grid-cols-2"><article className="surface space-y-4">
-      <h2 className="text-xl font-bold">{a.job.companyName}</h2><p className="text-slate-600">{a.job.location} · {candidateTrackLabel(a.job.candidateType)}</p>
+      <h2 className="text-xl font-bold">{a.job.companyName}</h2><p className="text-slate-600">{a.job.location} · {tr(candidateTrackLabel(a.job.candidateType))}</p>
       <p className="text-sm text-slate-500">{tr('Application')} #{a.id} · {tr('Applied')} {new Date(a.appliedAt).toLocaleString()}</p>
       <p className="whitespace-pre-wrap break-words text-slate-600">{a.job.description}</p>
       <Link className="button-secondary" to={`/candidate/jobs/${a.job.id}`}>{tr('View job details')}</Link>

@@ -73,7 +73,7 @@ public class ReplacementQueueManager {
         if(!stillEligible(r)) { release(r); match(r); return view(r); }
         var now=Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS); var p=new Placement(); p.setCandidate(r.getSelectedCandidate()); p.setEmployer(r.getEmployer()); p.setJob(r.getPlacement().getJob()); p.setSkill(r.getPlacement().getSkill());
         p.setGuaranteeEligible(r.getPlacement().isGuaranteeEligible());
-        placementService.activate(p,now); r.getPlacement().setStatus(PlacementStatus.REPLACED);
+        placementService.activate(p,now); r.getPlacement().setStatus(PlacementStatus.REPLACED); r.getPlacement().setEndedAt(now);
         r.setReplacementPlacement(p); r.setStatus(ReplacementStatus.COMPLETED); r.setActualCompletionAt(now);
         r.setSlaStatus(now.isAfter(r.getTargetCompletionAt())?SlaStatus.BREACHED:SlaStatus.ON_TIME);
         publish(r,"REPLACEMENT_COMPLETED","Replacement active"); return view(r);

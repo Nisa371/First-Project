@@ -10,7 +10,7 @@ export const verification = {
   requirements: () => api.get<Requirement[]>('/admin/verification-requirements').then(r => r.data),
   reviews: () => api.get<Review[]>('/admin/verification-submissions').then(r => r.data),
 }
-export const documentLabel = (status?: VerificationStatus) => status === 'VERIFIED' ? 'Approved' : status === 'FAILED' || status === 'FLAGGED' ? 'Rejected' : status === 'IN_REVIEW' ? 'In review' : status === 'PENDING' ? 'Pending' : 'Not submitted'
+export const documentLabel = (status?: VerificationStatus) => status === 'VERIFIED' ? 'Approved' : status === 'FLAGGED' ? 'Flagged' : status === 'FAILED' ? 'Rejected' : status === 'IN_REVIEW' ? 'In review' : status === 'PENDING' ? 'Pending' : 'Not submitted'
 export async function downloadDocument(id: number) {
   const { data } = await api.get<Blob>(`/verifications/documents/${id}`, { responseType: 'blob' })
   const url = URL.createObjectURL(data), a = document.createElement('a')

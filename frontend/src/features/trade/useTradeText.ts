@@ -4,6 +4,8 @@ import { tradeBn } from './tradeBn'
 export function tradeText(text: string, trade: boolean): string {
   if (!trade) return text
   if (tradeBn[text]) return tradeBn[text]
+  const statusLabel = text.toLowerCase().replaceAll('_', ' ')
+  if (tradeBn[statusLabel]) return tradeBn[statusLabel]
   let match = /^Replacement #(\d+) · (.+) · (.+)$/.exec(text)
   if (match) return `বিকল্প কর্মীর অনুরোধ #${match[1]} · ${match[2]} · ${tradeBn[match[3]] ?? match[3]}`
   match = /^Your placement in (.+) is now active\.$/.exec(text)

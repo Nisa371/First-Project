@@ -26,6 +26,12 @@ public class TrainingProgram extends BaseEntity {
     @JoinColumn(name = "skill_id", nullable = true)
     private Skill skill;
 
+    @jakarta.persistence.ManyToMany
+    @jakarta.persistence.JoinTable(name = "training_program_skills",
+        joinColumns = @JoinColumn(name = "training_program_id"),
+        inverseJoinColumns = @JoinColumn(name = "skill_id"))
+    private java.util.Set<Skill> skills = new java.util.LinkedHashSet<>();
+
     @Column(nullable = true, length = 3000)
     private String description;
 

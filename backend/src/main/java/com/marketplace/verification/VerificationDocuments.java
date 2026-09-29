@@ -80,21 +80,21 @@ public class VerificationDocuments {
             notifications.afterCommit(admin.getId(),title,message));
         return checklist.document(record);
     }
-    @PreAuthorize("hasAnyRole('CANDIDATE','EMPLOYER','ADMIN')")
+    @PreAuthorize("hasAnyRole('CANDIDATE','EMPLOYER','ADMIN','EVALUATOR')")
     @Transactional(readOnly=true)
     public Download download(Long id) throws IOException {
         var actor=current.requireActive();var record=records.findById(id).orElseThrow(VerificationChecklist::missing);
-        if(actor.getRole()!=Role.ADMIN && !actor.getId().equals(checklist.owner(record).getId()))
+        if(actor.getRole()!=Role.ADMIN && actor.getRole()!=Role.EVALUATOR && !actor.getId().equals(checklist.owner(record).getId()))
             throw new ApiException(403,"FORBIDDEN","You cannot access another account's verification document.");
         if(record.getStoredName()==null || !Files.isRegularFile(path(record.getStoredName()),LinkOption.NOFOLLOW_LINKS)) throw VerificationChecklist.missing();
         return new Download(Files.readAllBytes(path(record.getStoredName())),record.getContentType());
     }
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','EVALUATOR')")
     public List<Review> reviews() {
         current.requireActive();return records.findAll(org.springframework.data.domain.PageRequest.of(0,50,org.springframework.data.domain.Sort.by("submittedAt","id").descending())).stream().map(this::view).toList();
     }
     public record ReviewPage(List<Review> content,long totalElements,int page,int totalPages) {}
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','EVALUATOR')")
     public ReviewPage reviewPage(String status,String role,Long companyId,int page,int size) {
         current.requireActive();
         if(page<0 || size<1 || size>50 || (long)page*size>Integer.MAX_VALUE || !List.of("","PENDING","VERIFIED","FAILED").contains(status) || !List.of("","CANDIDATE","EMPLOYER").contains(role))
@@ -102,11 +102,11 @@ public class VerificationDocuments {
         var result=records.reviewPage(status,role,companyId,org.springframework.data.domain.PageRequest.of(page,size,org.springframework.data.domain.Sort.by("submittedAt","id").descending()));
         return new ReviewPage(result.stream().map(this::view).toList(),result.getTotalElements(),page,result.getTotalPages());
     }
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','EVALUATOR')")
     public Review review(Long id, Decision decision) {
         var actor=current.requireActive();
-        if(!List.of(VerificationStatus.VERIFIED,VerificationStatus.FAILED).contains(decision.status()))
-            throw new ApiException(400,"INVALID_DECISION","Choose approved or rejected.");
+        if(!List.of(VerificationStatus.VERIFIED,VerificationStatus.FAILED,VerificationStatus.FLAGGED).contains(decision.status()))
+            throw new ApiException(400,"INVALID_DECISION","Choose approved, rejected or flagged.");
         if(decision.status()==VerificationStatus.FAILED && (decision.notes()==null || decision.notes().isBlank()))
             throw new ApiException(400,"VALIDATION_ERROR","Explain why this document was rejected.");
         Long ownerId=records.ownerId(id).orElseThrow(VerificationChecklist::missing);
@@ -118,7 +118,7 @@ public class VerificationDocuments {
         if(record.getRequirement()!=null && checklist.applicable(checklist.owner(record)).stream().noneMatch(r -> r.getId().equals(record.getRequirement().getId())))
             throw new ApiException(409,"REQUIREMENT_CHANGED","This requirement no longer applies. The submission remains in history.");
         record.setStatus(decision.status());record.setReviewerNotes(decision.notes()==null?null:decision.notes().strip());record.setReviewerUser(actor);record.setReviewedAt(Instant.now());
-        String message="Your verification submission #"+record.getId()+" was "+(decision.status()==VerificationStatus.VERIFIED?"approved.":"rejected.");
+        String message="Your verification submission #"+record.getId()+" was "+(decision.status()==VerificationStatus.VERIFIED?"approved.":decision.status()==VerificationStatus.FLAGGED?"flagged.":"rejected.");
         // Only uploaded-document notes are already visible to their owner; legacy notes stay private.
         if(decision.status()==VerificationStatus.FAILED && record.getStoredName()!=null)
             message+=" Reason: "+record.getReviewerNotes();

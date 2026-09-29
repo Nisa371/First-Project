@@ -1,3 +1,4 @@
+import { useIsTrade, useTradeText } from '../trade/useTradeText'
 import { Link } from 'react-router'
 import type { Applicant, Company, Job, Profile } from './api'
 import type { Checklist } from '../verification/api'
@@ -22,14 +23,15 @@ function WorkflowGuide({ steps, next, note, trade = false, readinessPercent }: {
 }
 
 export function CandidateWorkflow({ profile: p }: { profile: Profile }) {
-  const trade = p.candidateType === 'TRADE'
+  const trade = useIsTrade()
+  const tr = useTradeText()
   const readiness = candidateReadiness(p)
   const done = (id: string) => readiness.items.find(item => item.id === id)?.done ?? false
   const text = (en: string, bn: string) => trade ? bn : en
   const steps: Step[] = [
     { title: text('Complete basic profile', 'প্রোফাইল সম্পূর্ণ করুন'), done: done('basic'), to: '/candidate/profile', cta: text('Edit profile', 'প্রোফাইল লিখুন'), why: text('Add your contact details, location, introduction, experience, photo and education or trade so employers can understand your background.', 'যোগাযোগ, এলাকা, পরিচিতি, অভিজ্ঞতা, ছবি ও পেশা যোগ করুন। নিয়োগদাতা আপনার সম্পর্কে জানতে পারবেন।') },
     { title: text('Add skills', 'দক্ষতা যোগ করুন'), done: done('skills'), to: '/candidate/profile', cta: text('Add skills', 'দক্ষতা যোগ করুন'), why: text('Show employers the work you can do and your level of experience.', 'আপনি কোন কাজ পারেন তা নিয়োগদাতাকে জানান।') },
-    { title: text('Upload or build a CV', 'সিভি যোগ করুন'), done: done('cv'), hint: readiness.cvMessage, to: '/candidate/cv', cta: text('Open CV Builder', 'সিভি তৈরি করুন'), why: text('Build a CV here, or upload a PDF from My profile. Either counts toward this step.', 'আপনার পড়াশোনা ও কাজের অভিজ্ঞতা দিয়ে সিভি তৈরি করুন।') },
+    { title: text('Upload or build a CV', 'সিভি যোগ করুন'), done: done('cv'), hint: tr(readiness.cvMessage), to: '/candidate/cv', cta: text('Open CV Builder', 'সিভি তৈরি করুন'), why: text('Build a CV here, or upload a PDF from My profile. Either counts toward this step.', 'আপনার পড়াশোনা ও কাজের অভিজ্ঞতা দিয়ে সিভি তৈরি করুন।') },
     // The existing TRADE profile has no portfolio editor; do not suggest an unavailable action.
     ...(!trade ? [{ title: 'Add portfolio', done: done('portfolio'), to: '/candidate/profile', cta: 'Add portfolio link', why: 'Share examples of your work. A portfolio is recommended, but is not required to apply.' }] : []),
     { title: text('Complete verification', 'যাচাইকরণ সম্পূর্ণ করুন'), done: done('verification'), required: true, to: '/candidate/verification', cta: text('Go to verification', 'যাচাইকরণ দেখুন'), why: p.verificationStatus === 'IN_REVIEW' ? text('Your documents are in review. Approval is required before applying; check your checklist for any remaining documents.', 'কাগজপত্র যাচাই চলছে। আবেদনের আগে অনুমোদন প্রয়োজন। কোনো কাগজ বাকি আছে কি না দেখুন।') : text('Complete manual platform verification before applying for jobs.', 'চাকরিতে আবেদনের আগে প্ল্যাটফর্মের যাচাইকরণ সম্পূর্ণ করুন।') },

@@ -13,4 +13,4 @@ export function useLoad<T>(loader: () => Promise<T>) {
   return { data: loading ? null : result?.data ?? null, error: loading ? '' : result?.error ?? '', loading,
     setData: (data: T) => setResult({ loader, revision, data, error: '' }), reload: () => setRevision(n => n + 1) }
 }
-export const words = (value: string) => value.toLowerCase().replaceAll('_', ' ')
+export const words = (value?: string | null) => value ? value.toLowerCase().replaceAll('_', ' ') : 'unknown'

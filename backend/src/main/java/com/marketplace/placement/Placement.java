@@ -47,6 +47,9 @@ public class Placement extends CreatedEntity {
     @Column(nullable = false)
     private LocalDate startDate;
 
+    @Column(nullable = true)
+    private Instant endedAt;
+
     @Column(nullable = false)
     private boolean guaranteeEligible = false;
 

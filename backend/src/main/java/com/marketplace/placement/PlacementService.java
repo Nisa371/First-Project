@@ -33,10 +33,26 @@ public class PlacementService {
     private final ApplicationEventPublisher events;
     public record PlacementView(Long id, Long candidateId, String candidateName, String company, String job,
         String skill, PlacementStatus status, LocalDate startDate, boolean guaranteeEligible, Instant guaranteeExpiresAt, CandidateType candidateType, Long guaranteeDays) {}
+    public record CandidateHistory(Long id,String company,String job,String skill,PlacementStatus status,LocalDate startDate,Instant endDate) {}
     @PreAuthorize("hasAnyRole('CANDIDATE','EMPLOYER','ADMIN')")
-    public List<PlacementView> mine() {
+    public List<?> mine() {
         var u=current.requireActive();
+        if(u.getRole()==Role.CANDIDATE) {
+            var c=candidates.findByUserId(u.getId()).orElseThrow(CandidateService::missing);
+            return placements.findByCandidateIdOrderByCreatedAtDesc(c.getId()).stream().map(p->new CandidateHistory(
+                p.getId(),p.getEmployer().getCompanyName(),p.getJob()==null?null:p.getJob().getTitle(),p.getSkill().getName(),
+                p.getStatus()==PlacementStatus.REPLACED?PlacementStatus.COMPLETED:p.getStatus(),p.getStartDate(),historyEnd(p))).toList();
+        }
         return placements.findAll().stream().filter(p->u.getRole()==Role.ADMIN || p.getCandidate().getUser().getId().equals(u.getId()) || p.getEmployer().getUser().getId().equals(u.getId())).map(this::view).toList();
+    }
+    private Instant historyEnd(Placement p) {
+        if(p.getStatus()==PlacementStatus.ACTIVE || p.getStatus()==PlacementStatus.PENDING) return null;
+        if(p.getEndedAt()!=null) return p.getEndedAt();
+        if(p.getStatus()==PlacementStatus.REPLACED)
+            return replacements.findByPlacementIdOrderByRequestedAtDescIdDesc(p.getId()).stream()
+                .filter(r->r.getStatus()==ReplacementStatus.COMPLETED && r.getActualCompletionAt()!=null)
+                .map(ReplacementRequest::getActualCompletionAt).findFirst().orElse(null);
+        return null;
     }
     @PreAuthorize("hasRole('EMPLOYER')")
     public PlacementView create(Long jobId, Long candidateId, boolean guaranteed) {
@@ -75,7 +91,7 @@ public class PlacementService {
         if(replacement!=null) {
             replacement.setReplacementPlacement(p); replacement.setSelectedCandidate(c);
             replacement.setStatus(ReplacementStatus.COMPLETED); replacement.setActualCompletionAt(Instant.now());
-            replacement.getPlacement().setStatus(PlacementStatus.REPLACED); j.setStatus(JobStatus.CLOSED);
+            replacement.getPlacement().setStatus(PlacementStatus.REPLACED); replacement.getPlacement().setEndedAt(replacement.getActualCompletionAt()); j.setStatus(JobStatus.CLOSED);
         }
         events.publishEvent(new MarketplaceEvent(u, "PLACEMENT_CREATED", "PLACEMENT",p.getId(),List.of(u,c.getUser()),"Placement active", "Your placement in "+p.getSkill().getName()+" is now active."));
         return view(p);
@@ -105,7 +121,7 @@ public class PlacementService {
         var p=placements.findByIdForUpdate(id).orElseThrow(CandidateService::missing); current.requireOwner(p.getEmployer().getUser().getId());
         candidates.findByIdForUpdate(p.getCandidate().getId()).orElseThrow(CandidateService::missing);
         if(p.getStatus()!=PlacementStatus.ACTIVE || replacements.findByPlacementIdAndActiveRequestTrue(id).isPresent()) throw conflict("Only active placements without an open replacement can be ended.");
-        p.setStatus(complete?PlacementStatus.COMPLETED:PlacementStatus.TERMINATED);
+        p.setStatus(complete?PlacementStatus.COMPLETED:PlacementStatus.TERMINATED); p.setEndedAt(Instant.now());
         queueService.synchronize(p.getCandidate().getId());
         events.publishEvent(new MarketplaceEvent(current.requireActive(),"PLACEMENT_ENDED","PLACEMENT",id,List.of(p.getEmployer().getUser(),p.getCandidate().getUser()),"Placement ended","Placement #"+id+" is "+p.getStatus().name().toLowerCase()+"."));
         return view(p);

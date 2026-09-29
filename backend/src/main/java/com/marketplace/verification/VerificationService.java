@@ -42,7 +42,7 @@ public class VerificationService {
     public ReviewView detail(Long id) {
         current.requireActive(); var v=records.findById(id).orElseThrow(CandidateService::missing); legacyOnly(v); return reviewView(v);
     }
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN','EVALUATOR')")
     public ReviewView review(Long id, Decision decision) {
         var reviewer = current.requireActive();
         if (!List.of(VerificationStatus.VERIFIED, VerificationStatus.FAILED, VerificationStatus.FLAGGED).contains(decision.status()))
@@ -54,11 +54,11 @@ public class VerificationService {
             throw new ApiException(409, "FINAL_REVIEW", "This verification already has a final decision.");
         v.setReviewerUser(reviewer); v.setStatus(decision.status()); v.setReviewerNotes(decision.notes().trim()); v.setReviewedAt(Instant.now());
         notifications.afterCommit(checklist.owner(v).getId(),"Verification result",
-            "Your verification submission #"+v.getId()+" was "+(decision.status()==VerificationStatus.VERIFIED?"approved.":"rejected."));
+            "Your verification submission #"+v.getId()+" was "+(decision.status()==VerificationStatus.VERIFIED?"approved.":decision.status()==VerificationStatus.FLAGGED?"flagged.":"rejected."));
         return reviewView(v);
     }
     private void legacyOnly(VerificationRecord v) {
-        if(v.getCandidate()==null || v.getStoredName()!=null) throw new ApiException(403,"ADMIN_REVIEW_REQUIRED","Document submissions require administrator review.");
+        if(v.getCandidate()==null || v.getStoredName()!=null) throw new ApiException(403,"ADMIN_REVIEW_REQUIRED","Use the document review workflow for document submissions.");
     }
     private StatusView status(VerificationRecord v) { return new StatusView(v.getId(),v.getStatus(),v.getSubmittedAt(),v.getReviewedAt()); }
     private ReviewView reviewView(VerificationRecord v) {

@@ -14,13 +14,12 @@ const sections: Record<string, string> = { Users: 'users', Candidates: 'candidat
 export function AdminPage() {
   const state = useLoad(load)
   const unread = useUnreadNotifications()
-  const [params, setParams] = useSearchParams()
+  const [params] = useSearchParams()
   const tab = params.get('tab') ?? 'Users'
   const reviewRole = ['CANDIDATE', 'EMPLOYER'].includes(params.get('role') ?? '') ? params.get('role')! : ''
   const candidateQueue = '/admin/dashboard?tab=Verifications&role=CANDIDATE'
   const employerQueue = '/admin/dashboard?tab=Verifications&role=EMPLOYER'
   const cardLink = 'block rounded-2xl transition hover:ring-2 hover:ring-indigo-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-indigo-500'
-  const setTab = (value: string) => setParams({ tab: value })
   return <Workspace title="The marketplace, at a glance." subtitle="Account health, verification workload and managed hiring in one place."><LoadState {...state} /><div className="space-y-8">
     <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-bold">Operational overview</h2><button className="button-secondary" disabled={state.loading} onClick={() => { state.reload(); window.dispatchEvent(new Event('notifications-refresh')) }}>Refresh overview</button></div>
     {state.data && <>
@@ -52,7 +51,6 @@ export function AdminPage() {
         <Link className="underline underline-offset-4" to="/admin/dashboard?tab=Bookings">{state.data.pendingBookings} bookings awaiting payment →</Link>
       </div>
     </>}
-    <nav className="flex flex-wrap gap-2" aria-label="Admin sections">{[...Object.keys(sections), 'Company types', 'Verifications', 'Verification requirements', 'Marketplace settings'].map(t => <button key={t} aria-pressed={tab === t} className={tab === t ? 'button-primary' : 'button-secondary'} onClick={() => setTab(t)}>{t}</button>)}</nav>
     {tab === 'Marketplace settings' && <ReplacementGuaranteeSettings />}
     {sections[tab] && <AdminRecords key={tab} section={sections[tab]} changed={state.reload} />}
     {tab === 'Verifications' && <VerificationReviews key={reviewRole} initialRole={reviewRole} changed={state.reload} />}{tab === 'Verification requirements' && <VerificationRequirements />}{tab === 'Company types' && <CompanyTypeManagement />}

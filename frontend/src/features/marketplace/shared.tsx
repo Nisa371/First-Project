@@ -1,26 +1,11 @@
 import { candidateTrackLabel } from '../auth/types'
-import { useUnreadNotifications } from '../placement/useUnreadNotifications'
 import { useTradeError, useTradeText } from '../trade/useTradeText'
 import type { ReactNode } from 'react'
-import { NavLink } from 'react-router'
 import { useAuth } from '../auth/useAuth'
 
 export function Workspace({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
-  const tr = useTradeText()
-
   const { user } = useAuth()
-  const unread = useUnreadNotifications()
-  const notificationBadge = unread != null && unread > 0 ? <span aria-label={`${unread} ${tr('unread updates')}`} className="ml-2 inline-flex min-w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 px-1.5 py-0.5 text-xs font-bold text-indigo-800 dark:bg-indigo-900 dark:text-indigo-100">{unread > 99 ? '99+' : unread}</span> : null
-  const root = `/${user?.role.toLowerCase()}`
-  const links = user?.role === 'CANDIDATE' ? [['dashboard', tr("Overview")], ['profile', tr("My profile")], ['cv', tr("CV Builder")], ['jobs', tr("Explore Jobs")], ['applications', tr("My applications")], ['verification', tr("Verification")], ['bookings', tr("Appointments")]] : user?.role === 'EVALUATOR' ? [['dashboard', 'Work queue'], ['verifications', 'Verifications'], ['bookings', tr("Appointments")]] : user?.role === 'ADMIN' ? [['dashboard', tr("Overview")], ['queue', 'Waiting room']] : [['dashboard', tr("Overview")], ['profile', 'Company profile'], ['jobs', 'Jobs'], ['candidates', 'Applicants']]
-  if (user?.role !== 'EVALUATOR') links.push(['placements', tr("Placements")])
-  if (user?.role === 'EMPLOYER' || user?.role === 'ADMIN') links.push(['replacements', tr("Replacements")])
-  if (user?.role === 'EMPLOYER') links.push(['verification', tr("Verification")])
-  if (user?.role !== 'EMPLOYER') links.push(['training', tr("Training")])
-  links.push(['notifications', tr("🔔 Notifications")])
   return <div className="workspace"><div className="workspace-account mb-8 flex flex-wrap items-center justify-between gap-4"><p className="eyebrow">{user?.role === 'CANDIDATE' ? user.candidateType === 'TRADE' ? 'দক্ষ কর্মী · আপনার কাজের যাত্রা' : `${candidateTrackLabel(user.candidateType)} · YOUR CAREER` : `${user?.role} · YOUR WORKSPACE`}</p><span className="badge">{user?.displayName}</span></div>
-    <details className="mb-6 sm:hidden"><summary className="min-h-11 cursor-pointer rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold">{tr("Workspace menu")}</summary><nav aria-label={tr("Mobile workspace")} className="mt-3 grid grid-cols-2 gap-2">{links.map(([path, label]) => <NavLink key={path} to={`${root}/${path}`} onClick={e => e.currentTarget.closest('details')?.removeAttribute('open')} className={({ isActive }) => `workspace-link ${isActive ? 'bg-slate-900 text-white' : 'bg-white text-slate-600'}`}>{label}{path === 'notifications' && notificationBadge}</NavLink>)}</nav></details>
-    <nav aria-label={tr("Workspace")} className="workspace-nav mb-8 hidden flex-wrap gap-2 sm:flex">{links.map(([path, label]) => <NavLink key={path} to={`${root}/${path}`} className={({ isActive }) => `workspace-link ${isActive ? 'bg-slate-900 text-white' : 'bg-white text-slate-600 hover:bg-slate-100'}`}>{label}{path === 'notifications' && notificationBadge}</NavLink>)}</nav>
     <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{title}</h1><p className="mb-8 mt-3 max-w-2xl leading-relaxed text-slate-600">{subtitle}</p>{children}</div>
 }
 export function LoadState({ loading, error, reload }: { loading: boolean; error: string; reload: () => void }) {
