@@ -21,13 +21,14 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication,L
         Long getId();
         java.time.Instant getAppliedAt();
         int getExperienceMonths();
+        com.marketplace.candidate.Availability getAvailability();
         java.math.BigDecimal getCvScore();
         java.math.BigDecimal getPortfolioScore();
         java.math.BigDecimal getAssessmentScore();
         com.marketplace.interview.AssessmentSession.Status getAssessmentStatus();
     }
     @Query("""
-        select a.id as id, a.createdAt as appliedAt, c.totalExperienceMonths as experienceMonths,
+        select c.availability as availability, a.id as id, a.createdAt as appliedAt, c.totalExperienceMonths as experienceMonths,
             a.cvScore as cvScore, a.portfolioScore as portfolioScore, a.assessmentScore as assessmentScore,
             s.status as assessmentStatus
         from JobApplication a join a.candidate c

@@ -6,6 +6,8 @@ export function tradeText(text: string, trade: boolean): string {
   if (tradeBn[text]) return tradeBn[text]
   const statusLabel = text.toLowerCase().replaceAll('_', ' ')
   if (tradeBn[statusLabel]) return tradeBn[statusLabel]
+  const skillError = /^You need to add the required skill '(.*)' to your profile before applying\.$/.exec(text)
+  if (skillError) return `আবেদন করার আগে আপনার প্রোফাইলে '${skillError[1]}' দক্ষতাটি যোগ করুন।`
   let match = /^Replacement #(\d+) · (.+) · (.+)$/.exec(text)
   if (match) return `বিকল্প কর্মীর অনুরোধ #${match[1]} · ${match[2]} · ${tradeBn[match[3]] ?? match[3]}`
   match = /^Your placement in (.+) is now active\.$/.exec(text)
@@ -27,6 +29,7 @@ export function useTradeError() {
   return (message: string) => {
     if (!trade || !message) return message
     if (tradeBn[message]) return tradeBn[message]
+    if (message.startsWith("You need to add the required skill '")) return tradeText(message, true)
     if (/^[^A-Za-z]*[\u0980-\u09ff]/.test(message)) return message.replace(/\s+[A-Za-z].*$/, '')
     return 'কাজটি সম্পূর্ণ হয়নি। তথ্য ও সংযোগ দেখে আবার চেষ্টা করুন। প্রয়োজন হলে প্ল্যাটফর্মের সঙ্গে যোগাযোগ করুন।'
   }

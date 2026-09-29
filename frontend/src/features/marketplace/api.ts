@@ -1,4 +1,5 @@
 import { api } from '../../services/api'
+export const bySkillName = (a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' })
 export interface Skill { id: number; name: string; category: string; proficiencyLevel?: string }
 export interface Result { score: number; recommendation: string }
 export interface Candidate { profilePhotoUrl: string | null; id: number; candidateType: 'TECH' | 'TRADE'; fullName: string; location: string; bio: string; experienceSummary: string; totalExperienceMonths: number; availability: 'AVAILABLE' | 'UNAVAILABLE'; primaryTradeCategory: string; portfolioUrl: string; skills: Skill[]; verificationStatus: string; releasedResults: Result[]; hasCv: boolean }
@@ -7,10 +8,10 @@ export interface Company { companyName: string; companyTypeId: number | null; co
 export interface Job { id: number; title: string; description: string; location: string; candidateType: 'TECH' | 'TRADE'; requiredSkillId: number | null; requiredSkillName: string | null; status: 'ACTIVE' | 'CLOSED' | 'DRAFT'; shortlistCount: number; applicationCount: number; publicExpectations: string | null; privateExpectations: string | null; expectedExperienceMonths: number; createdAt: string }
 export interface SearchPage { content: Candidate[]; totalElements: number; page: number; totalPages: number }
 export const marketplace = {
-  profile: () => api.get<Profile>('/candidates/me').then(r => r.data),
+  profile: () => api.get<Profile>('/candidates/me').then(r => ({ ...r.data, skills: r.data.skills.sort(bySkillName) })),
   company: () => api.get<Company>('/employers/me').then(r => r.data),
   jobs: () => api.get<Job[]>('/jobs').then(r => r.data),
-  skills: () => api.get<Skill[]>('/skills').then(r => r.data),
+  skills: () => api.get<Skill[]>('/skills').then(r => r.data.sort(bySkillName)),
 }
 export async function downloadCv(path: string) {
   const response = await api.get<Blob>(path, { responseType: 'blob' })
@@ -20,7 +21,7 @@ export async function downloadCv(path: string) {
 }
 
 export type ApplicationStatus = 'APPLIED' | 'UNDER_REVIEW' | 'SHORTLISTED' | 'REJECTED' | 'WITHDRAWN'
-export interface PublicJob { hasApplied: boolean; companyTypeId: number | null; companyTypeName: string | null; id: number; title: string; description: string; companyName: string; location: string; candidateType: string; requiredSkillName: string | null; status: string; publicExpectations: string | null; expectedExperienceMonths: number; createdAt: string; applicationId: number | null; applicationStatus: ApplicationStatus | null }
+export interface PublicJob { requiredSkillId: number | null; hasApplied: boolean; companyTypeId: number | null; companyTypeName: string | null; id: number; title: string; description: string; companyName: string; location: string; candidateType: string; requiredSkillName: string | null; status: string; publicExpectations: string | null; expectedExperienceMonths: number; createdAt: string; applicationId: number | null; applicationStatus: ApplicationStatus | null }
 export interface Application { assessmentStatus: string; id: number; job: PublicJob; status: ApplicationStatus; appliedAt: string; updatedAt: string }
 export interface EvaluationWeights { cvWeight: number; portfolioWeight: number; experienceWeight: number; assessmentWeight: number }
 export interface EvaluationAttempt { status: 'NOT_EVALUATED' | 'COMPLETED' | 'FAILED' | 'UNAVAILABLE'; failureCode: string | null; attemptedAt: string | null; evaluatedAt: string | null }

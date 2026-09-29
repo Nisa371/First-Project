@@ -19,6 +19,7 @@ import static com.marketplace.job.JobDtos.*;
 @PreAuthorize("hasRole('EMPLOYER')")
 public class JobService {
     private final JobRepository jobs;
+    private final com.marketplace.placement.PlacementService placementService;
     private final com.marketplace.replacement.ReplacementRequestRepository replacements;
     private final EmployerService employers;
     private final CurrentAccount current;
@@ -38,8 +39,8 @@ public class JobService {
     public JobView update(Long id, JobRequest r) {
         var j=owned(id); requireOpen(j); requireCompatible(j,r); apply(j,r); return view(j);
     }
-    public JobView close(Long id) { return closeJob(owned(id)); }
-    private JobView closeJob(Job j) { var id=j.getId(); j.setStatus(JobStatus.CLOSED); payments.findByJobId(id).filter(p -> p.getStatus()==com.marketplace.payment.PaymentStatus.PENDING).ifPresent(p -> {
+    public JobView close(Long id) { skills.findFirstByOrderByIdAsc().orElseThrow(CandidateService::missing); return closeJob(owned(id)); }
+    private JobView closeJob(Job j) { var id=j.getId(); j.setStatus(JobStatus.CLOSED); placementService.closeSelections(j); payments.findByJobId(id).filter(p -> p.getStatus()==com.marketplace.payment.PaymentStatus.PENDING).ifPresent(p -> {
             p.setStatus(com.marketplace.payment.PaymentStatus.CANCELLED); p.setCompletedAt(java.time.Instant.now());
         }); return view(j); }
     @PreAuthorize("hasRole('ADMIN')")
@@ -62,7 +63,7 @@ public class JobService {
             throw new ApiException(409,"JOB_HAS_APPLICATIONS","Track and required skill cannot change after applications arrive.");
     }
     @PreAuthorize("hasRole('ADMIN')")
-    public JobView adminClose(Long id) { current.requireActive(); return closeJob(jobs.findByIdForUpdate(id).orElseThrow(CandidateService::missing)); }
+    public JobView adminClose(Long id) { current.requireActive(); skills.findFirstByOrderByIdAsc().orElseThrow(CandidateService::missing); return closeJob(jobs.findByIdForUpdate(id).orElseThrow(CandidateService::missing)); }
     @PreAuthorize("hasRole('ADMIN')")
     public JobView adminActivate(Long id) {
         current.requireActive(); var j=jobs.findByIdForUpdate(id).orElseThrow(CandidateService::missing);
@@ -81,7 +82,10 @@ public class JobService {
         j.setPublicExpectations(r.publicExpectations()); j.setPrivateExpectations(r.privateExpectations());
         if(r.expectedExperienceMonths()!=null) j.setExpectedExperienceMonths(r.expectedExperienceMonths());
         j.setTitle(r.title().trim()); j.setDescription(r.description().trim()); j.setLocation(r.location().trim()); j.setCandidateType(r.candidateType());
-        j.setRequiredSkill(r.requiredSkillId()==null ? null : skills.findById(r.requiredSkillId()).filter(s->s.isActive()).orElseThrow(CandidateService::missing));
+        if(r.requiredSkillId()==null) throw new ApiException(400,"INVALID_REQUIRED_SKILL","Select an active required skill matching the candidate track.");
+        var skill=skills.findById(r.requiredSkillId()).filter(s->s.isActive() && r.candidateType()!=null && r.candidateType().name().equals(s.getCategory()))
+            .orElseThrow(()->new ApiException(400,"INVALID_REQUIRED_SKILL","Select an active required skill matching the candidate track."));
+        j.setRequiredSkill(skill);
     }
     private JobView view(Job j) {
         return new JobView(j.getId(),j.getTitle(),j.getDescription(),j.getLocation(),j.getCandidateType(),

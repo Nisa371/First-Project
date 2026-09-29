@@ -1,11 +1,12 @@
+import { useAuth } from '../auth/useAuth'
 import { candidateTrackLabel } from '../auth/types'
 import { candidateReadiness } from './profileReadinessUtils'
 import { useTradeText } from '../trade/useTradeText'
-import { useCallback, useRef, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router'
 import { api, apiFailure } from '../../services/api'
 import type { CompanyType } from '../company-types/CompanyTypeSelector'
-import { experience, jobDiscovery, marketplace, type PublicJob } from './api'
+import { experience, jobDiscovery, marketplace, type PublicJob, type Profile } from './api'
 import { useLoad, words } from './useLoad'
 import { Modal } from '../../components/Modal'
 import { Workspace, LoadState, Empty, Feedback } from './shared'
@@ -13,11 +14,11 @@ import { Workspace, LoadState, Empty, Feedback } from './shared'
 const loadTypes = () => api.get<CompanyType[]>('/company-types').then(r => r.data)
 const posted = (job: PublicJob) => new Date(job.createdAt).toLocaleDateString()
 
-function ApplyAction({ job, onApplied }: { job: PublicJob; onApplied: () => void }) {
+function ApplyAction({ job, onApplied, profile }: { job: PublicJob; onApplied: () => void; profile?: Profile }) {
   const tr = useTradeText()
 
   const [busy, setBusy] = useState(false), [error, setError] = useState('')
-  const [blocked, setBlocked] = useState<'verification' | 'availability' | null>(null)
+  const [blocked, setBlocked] = useState<'verification' | 'availability' | 'skill' | null>(null)
   const [missing, setMissing] = useState<string[] | null>(null)
   const pending = useRef(false)
   async function apply(confirm = false) {
@@ -33,6 +34,9 @@ function ApplyAction({ job, onApplied }: { job: PublicJob; onApplied: () => void
       }
       const latest = await jobDiscovery.detail(String(job.id))
       if (latest.hasApplied) { setMissing(null); onApplied(); return }
+      if (profile.candidateType !== latest.candidateType) { setMissing(null); setError('Your candidate track does not match this job.'); return }
+      if (!latest.requiredSkillId) { setMissing(null); setError('This job does not have an active required skill matching its track.'); return }
+      if (!profile.skills.some(s => s.id === latest.requiredSkillId)) { setBlocked('skill'); setMissing(null); return }
       const absent = candidateReadiness(profile).warnings
       // Reconfirm if profile changes introduce additional missing items while the dialog is open.
       if (!confirm || missing === null || absent.some(item => !missing.includes(item))) { setMissing(absent); return }
@@ -40,9 +44,14 @@ function ApplyAction({ job, onApplied }: { job: PublicJob; onApplied: () => void
     } catch (e) {
       const failure = apiFailure(e)
       setError(failure.message); setMissing(null)
+      if (failure.error === 'REQUIRED_SKILL_MISSING') { setBlocked('skill'); setError('') }
       if (failure.error === 'ALREADY_APPLIED') onApplied()
     } finally { pending.current = false; setBusy(false) }
   }
+  if (!job.hasApplied && (blocked === 'skill' || (profile && job.requiredSkillId && !profile.skills.some(s => s.id === job.requiredSkillId)))) return <section role="status" className="space-y-3 rounded-xl border border-amber-200 bg-amber-50 p-5">
+    <h3 className="font-bold">{tr('Required skill missing')}</h3><p>{tr('This job requires:')} <strong>{job.requiredSkillName}</strong></p>
+    <p className="text-sm">{tr('Add this skill to your profile before applying.')}</p><Link className="button-primary" to="/candidate/profile">{tr('Go to My Profile')}</Link>
+  </section>
   return <div><Feedback error={error} />{blocked && <Link className="mb-4 inline-block text-sm font-semibold text-indigo-700 underline" to={blocked === 'verification' ? '/candidate/verification' : '/candidate/profile'}>{blocked === 'verification' ? tr('Verification') : tr('Edit skills and availability →')}</Link>}{job.hasApplied && job.applicationStatus
     ? <span role="status" className="badge bg-indigo-50 text-indigo-800">{tr("Application:")}{' '}{tr(words(job.applicationStatus))}</span>
     : <button className="button-primary" disabled={busy || job.status !== 'ACTIVE'} onClick={() => void apply()} aria-label={`${tr('Apply')} · ${job.title}`}>{busy ? tr("Please wait…") : job.status === 'ACTIVE' ? tr("Apply") : tr("Job closed")}</button>}
@@ -69,7 +78,7 @@ function Filters({ initial, onSearch }: { initial: URLSearchParams; onSearch: (p
     event.preventDefault()
     const params = new URLSearchParams()
     for (const [key, value] of Object.entries({ search: search.trim(), location: location.trim(), companyTypeId: sector, candidateTrack: track, minExperience: min, maxExperience: max, sort })) {
-      if (value) params.set(key, value)
+      if (value || key === 'candidateTrack') params.set(key, value)
     }
     onSearch(params)
   }
@@ -90,15 +99,24 @@ export function CandidateJobsPage() {
   const tr = useTradeText()
 
   const [params, setParams] = useSearchParams()
-  const query = params.toString()
+  const { user } = useAuth()
+  const ownTrack = user?.candidateType ?? ''
+  const effectiveParams = new URLSearchParams(params)
+  if (!effectiveParams.has('candidateTrack') && ownTrack) effectiveParams.set('candidateTrack', ownTrack)
+  const query = effectiveParams.toString()
+  useEffect(() => {
+    if (!params.has('candidateTrack') && ownTrack) {
+      const next = new URLSearchParams(params); next.set('candidateTrack', ownTrack); setParams(next, { replace: true })
+    }
+  }, [params, ownTrack, setParams])
   const loader = useCallback(() => jobDiscovery.search(new URLSearchParams(query)), [query])
   const state = useLoad(loader)
   const [filterRevision, setFilterRevision] = useState(0)
-  function search(next: URLSearchParams) { setParams(next); setFilterRevision(n => n + 1) }
+  function search(next: URLSearchParams) { if (!next.has("candidateTrack") && ownTrack) next.set("candidateTrack", ownTrack); setParams(next); setFilterRevision(n => n + 1) }
   function changePage(page: number) { const next = new URLSearchParams(params); next.set('page', String(page)); setParams(next); window.scrollTo({ top: 0, behavior: 'smooth' }) }
   return <Workspace title={tr("Explore Jobs")} subtitle={tr("Discover professional, trade and household opportunities. Find a role that fits your skills and experience.")}>
     <div className="mb-5 flex justify-end"><Link className="font-semibold text-indigo-700" to="/candidate/applications">{tr("My applications →")}</Link></div>
-    <Filters key={`${query}:${filterRevision}`} initial={params} onSearch={search} />
+    <Filters key={`${query}:${filterRevision}`} initial={effectiveParams} onSearch={search} />
     <LoadState {...state} />
     {state.data && <><p role="status" className="mb-4 text-sm text-slate-600">{state.data.totalElements} {state.data.totalElements === 1 ? tr("opportunity") : tr("opportunities")}{' '}{tr("found")}{' '}{state.data.content.length > 0 && ` · ${tr('Page')} ${state.data.page + 1} / ${state.data.totalPages}`}</p>
       {!state.data.content.length ? <Empty title={state.data.totalElements ? tr("No jobs on this page") : tr("No matching jobs")}><p>{tr("Try a broader search or clear your filters to explore available roles.")}</p><button className="button-secondary mt-4" onClick={() => search(new URLSearchParams())}>{tr("Show all jobs")}</button></Empty>
@@ -112,10 +130,10 @@ export function CandidateJobPage() {
   const tr = useTradeText()
 
   const { id = '' } = useParams()
-  const loader = useCallback(() => jobDiscovery.detail(id), [id]), state = useLoad(loader)
-  const j = state.data
+  const loader = useCallback(() => Promise.all([jobDiscovery.detail(id), marketplace.profile()]), [id]), state = useLoad(loader)
+  const j = state.data?.[0]
   return <Workspace title={j?.title ?? tr("Job details")} subtitle={tr("Review the role before submitting your application.")}>
     <Link className="mb-5 inline-block font-semibold text-indigo-700" to="/candidate/jobs">{tr("← Explore Jobs")}</Link><LoadState {...state} />
-    {j && <section className="surface max-w-3xl space-y-6"><div><p className="break-words font-semibold">{j.companyName} · {j.location}</p><p className="mt-2 break-words text-sm text-slate-500">{j.companyTypeName ?? tr("Sector not specified")}{' '}{tr("· Posted")}{' '}{posted(j)}</p></div><div className="flex flex-wrap gap-2"><span className="badge">{tr(candidateTrackLabel(j.candidateType))}</span><span className="badge">{tr(words(j.status))}</span><span className="badge">{tr(experience(j.expectedExperienceMonths))}</span></div><div><h2 className="font-bold">{tr("About the role")}</h2><p className="mt-3 whitespace-pre-wrap break-words leading-relaxed text-slate-600">{j.description}</p></div><div><h2 className="font-bold">{tr("What the employer expects")}</h2><p className="mt-3 whitespace-pre-wrap break-words leading-relaxed text-slate-600">{j.publicExpectations || tr("See the responsibilities and requirements above.")}</p>{j.requiredSkillName && <p className="mt-3 text-sm">{tr("Required skill:")}{' '}{j.requiredSkillName}</p>}</div><ApplyAction key={j.id} job={j} onApplied={state.reload} /><Link className="inline-block font-semibold text-indigo-700" to="/candidate/applications">{tr("My applications →")}</Link></section>}
+    {j && <section className="surface max-w-3xl space-y-6"><div><p className="break-words font-semibold">{j.companyName} · {j.location}</p><p className="mt-2 break-words text-sm text-slate-500">{j.companyTypeName ?? tr("Sector not specified")}{' '}{tr("· Posted")}{' '}{posted(j)}</p></div><div className="flex flex-wrap gap-2"><span className="badge">{tr(candidateTrackLabel(j.candidateType))}</span><span className="badge">{tr(words(j.status))}</span><span className="badge">{tr(experience(j.expectedExperienceMonths))}</span></div><div><h2 className="font-bold">{tr("About the role")}</h2><p className="mt-3 whitespace-pre-wrap break-words leading-relaxed text-slate-600">{j.description}</p></div><div><h2 className="font-bold">{tr("What the employer expects")}</h2><p className="mt-3 whitespace-pre-wrap break-words leading-relaxed text-slate-600">{j.publicExpectations || tr("See the responsibilities and requirements above.")}</p>{j.requiredSkillName && <p className="mt-3 text-sm">{tr("Required skill:")}{' '}{j.requiredSkillName}</p>}</div><ApplyAction key={j.id} profile={state.data?.[1]} job={j} onApplied={state.reload} /><Link className="inline-block font-semibold text-indigo-700" to="/candidate/applications">{tr("My applications →")}</Link></section>}
   </Workspace>
 }

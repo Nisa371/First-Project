@@ -9,7 +9,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
 
-public interface PlacementRepository extends JpaRepository<Placement, Long> {
+public interface PlacementRepository extends JpaRepository<Placement, Long>, org.springframework.data.jpa.repository.JpaSpecificationExecutor<Placement> {
     boolean existsByJobIdAndCandidateId(Long jobId, Long candidateId);
     Optional<Placement> findByIdAndEmployerUserId(Long id, Long userId);
     List<Placement> findByEmployerIdOrderByCreatedAtDesc(Long employerId);

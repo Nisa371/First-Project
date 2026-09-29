@@ -5,12 +5,12 @@ import java.time.Instant;
 public final class JobDtos {
     private JobDtos() {}
     public record JobRequest(@NotBlank @Size(max=200) String title, @NotBlank @Size(max=5000) String description,
-        @NotBlank @Size(max=255) String location, @NotNull CandidateType candidateType, Long requiredSkillId,
+        @NotBlank @Size(max=255) String location, @NotNull CandidateType candidateType, @NotNull @Positive Long requiredSkillId,
         @Size(max=5000) String publicExpectations, @Size(max=5000) String privateExpectations, @Min(0) Integer expectedExperienceMonths) {}
     public record JobView(Long id, String title, String description, String location, CandidateType candidateType,
         Long requiredSkillId, String requiredSkillName, JobStatus status, long shortlistCount, long applicationCount, Instant createdAt, String publicExpectations, String privateExpectations, int expectedExperienceMonths) {}
     public record PublicJob(Long id, String title, String description, String companyName, String location,
-        CandidateType candidateType, String requiredSkillName, JobStatus status, String publicExpectations,
+        CandidateType candidateType, Long requiredSkillId, String requiredSkillName, JobStatus status, String publicExpectations,
         int expectedExperienceMonths, Instant createdAt, Long applicationId, ApplicationStatus applicationStatus, boolean hasApplied,
         Long companyTypeId, String companyTypeName) {}
     public record JobSearch(@Size(max=200) String search, @Size(max=255) String location,

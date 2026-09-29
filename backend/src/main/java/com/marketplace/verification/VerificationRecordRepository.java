@@ -22,7 +22,7 @@ public interface VerificationRecordRepository extends JpaRepository<Verification
     @org.springframework.data.jpa.repository.Query("""
         select count(v) from VerificationRecord v
         left join v.candidate c left join c.user cu left join v.owner o left join v.requirement vr
-        where coalesce(o.role, cu.role) = :role
+        where v.supportingDocument = false and coalesce(o.role, cu.role) = :role
           and v.status in (com.marketplace.verification.VerificationStatus.PENDING, com.marketplace.verification.VerificationStatus.IN_REVIEW)
           and exists (
             select r.id from VerificationRequirement r
@@ -40,7 +40,7 @@ public interface VerificationRecordRepository extends JpaRepository<Verification
           and not exists (
             select newer.id from VerificationRecord newer
             left join newer.candidate nc left join nc.user nu left join newer.requirement nr
-            where (newer.owner.id = coalesce(o.id, cu.id) or nu.id = coalesce(o.id, cu.id))
+            where newer.supportingDocument = false and (newer.owner.id = coalesce(o.id, cu.id) or nu.id = coalesce(o.id, cu.id))
               and (nr.id = vr.id
                 or (vr.id is null and (nr.id is null or nr.code = 'CANDIDATE_NID'))
                 or (vr.code = 'CANDIDATE_NID' and nr.id is null and nc.id is not null))

@@ -8,7 +8,7 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
 
-public interface ReplacementRequestRepository extends JpaRepository<ReplacementRequest, Long> {
+public interface ReplacementRequestRepository extends JpaRepository<ReplacementRequest, Long>, org.springframework.data.jpa.repository.JpaSpecificationExecutor<ReplacementRequest> {
     Optional<ReplacementRequest> findByFreeReplacementJobId(Long jobId);
     List<ReplacementRequest> findByPlacementIdOrderByRequestedAtDescIdDesc(Long placementId);
     Optional<ReplacementRequest> findByPlacementIdAndActiveRequestTrue(Long placementId);

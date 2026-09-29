@@ -2,7 +2,6 @@ package com.marketplace.replacement;
 
 import com.marketplace.candidate.*;
 import com.marketplace.verification.*;
-import com.marketplace.placement.*;
 import com.marketplace.user.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -18,7 +17,6 @@ public class QueueEligibilityService {
     private final CandidateSkillRepository skills;
     private final VerificationChecklist verifications;
     private final WaitingListEntryRepository queue;
-    private final PlacementRepository placements;
     public record Check(String code, boolean passed) {}
     public record Readiness(boolean eligible, List<Check> checks) {}
 
@@ -33,7 +31,6 @@ public class QueueEligibilityService {
         checks.add(new Check("TRADE_SKILL",!tradeSkills.isEmpty()));
         checks.add(new Check("AVAILABLE",c.getAvailability()==Availability.AVAILABLE));
         checks.add(new Check("NOT_RESERVED",!queue.existsByCandidateIdAndStatus(candidateId,QueueStatus.RESERVED)));
-        checks.add(new Check("NO_ACTIVE_PLACEMENT",!placements.existsByCandidateIdAndStatusIn(candidateId,List.of(PlacementStatus.PENDING,PlacementStatus.ACTIVE))));
         return new Readiness(checks.stream().allMatch(Check::passed),List.copyOf(checks));
     }
     public boolean canAdmit(Long candidateId, Long skillId) {

@@ -53,7 +53,8 @@ public class AdminRecordsService {
             throw new ApiException(400,"INVALID_FILTER","Use a page size of 1–50 and a short search.");
         var c=catalog(section); var cb=em.getCriteriaBuilder();
         var query=cb.createQuery(c.type()); var root=query.from(c.type());
-        query.where(filter(cb,root,c,search,status)); query.orderBy(cb.desc(root.get("id")));
+        query.where(filter(cb,root,c,search,status)); if(section.equals("skills")) query.orderBy(cb.asc(cb.lower(root.get("name"))),cb.asc(root.get("id")));
+        else query.orderBy(cb.desc(root.get("id")));
         var rows=em.createQuery(query).setFirstResult(page*size).setMaxResults(size).getResultList().stream().map(this::row).toList();
         var count=cb.createQuery(Long.class); var cr=count.from(c.type()); count.select(cb.count(cr)).where(filter(cb,cr,c,search,status));
         long total=em.createQuery(count).getSingleResult(); return new Page(rows,total,page,(int)((total+size-1)/size));

@@ -15,12 +15,13 @@ export function AdminPage() {
   const state = useLoad(load)
   const unread = useUnreadNotifications()
   const [params] = useSearchParams()
-  const tab = params.get('tab') ?? 'Users'
+  const tab = params.get('tab') || 'Overview'
   const reviewRole = ['CANDIDATE', 'EMPLOYER'].includes(params.get('role') ?? '') ? params.get('role')! : ''
   const candidateQueue = '/admin/dashboard?tab=Verifications&role=CANDIDATE'
   const employerQueue = '/admin/dashboard?tab=Verifications&role=EMPLOYER'
   const cardLink = 'block rounded-2xl transition hover:ring-2 hover:ring-indigo-400 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-indigo-500'
-  return <Workspace title="The marketplace, at a glance." subtitle="Account health, verification workload and managed hiring in one place."><LoadState {...state} /><div className="space-y-8">
+  return <Workspace title={tab === 'Overview' ? "The marketplace, at a glance." : tab} subtitle={tab === 'Overview' ? "Account health, verification workload and managed hiring in one place." : "Manage marketplace records and operations."}><div className="space-y-8">
+    {tab === 'Overview' && <><LoadState {...state} />
     <div className="flex items-center justify-between gap-3"><h2 className="text-xl font-bold">Operational overview</h2><button className="button-secondary" disabled={state.loading} onClick={() => { state.reload(); window.dispatchEvent(new Event('notifications-refresh')) }}>Refresh overview</button></div>
     {state.data && <>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -50,6 +51,7 @@ export function AdminPage() {
         <Link className="font-semibold underline underline-offset-4" to="/admin/queue">FIFO waiting room →</Link>
         <Link className="underline underline-offset-4" to="/admin/dashboard?tab=Bookings">{state.data.pendingBookings} bookings awaiting payment →</Link>
       </div>
+    </>}
     </>}
     {tab === 'Marketplace settings' && <ReplacementGuaranteeSettings />}
     {sections[tab] && <AdminRecords key={tab} section={sections[tab]} changed={state.reload} />}

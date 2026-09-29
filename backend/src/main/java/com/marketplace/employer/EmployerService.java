@@ -21,6 +21,13 @@ public class EmployerService {
     public record Profile(String companyName, Long companyTypeId, String companyTypeName, boolean companyTypeOther,
         boolean companyTypeActive, String customCompanyType, String contactPhone, String address, String description) {}
     public EmployerProfile own() { return employers.findByUserId(current.requireActive().getId()).orElseThrow(CandidateService::missing); }
+    public record Notice(java.time.Instant acknowledgedAt) {}
+    public Notice notice() { return new Notice(own().getEmployerNoticeAcknowledgedAt()); }
+    public Notice acknowledgeNotice() {
+        var employer=own();
+        if(employer.getEmployerNoticeAcknowledgedAt()==null) employer.setEmployerNoticeAcknowledgedAt(java.time.Instant.now());
+        return new Notice(employer.getEmployerNoticeAcknowledgedAt());
+    }
     public Profile profile() { return view(own()); }
     public Profile update(Update r) {
         return apply(own(), r);

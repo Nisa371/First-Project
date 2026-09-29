@@ -15,6 +15,9 @@ public class VerificationDocumentController {
     @PostMapping(value="/api/verifications/me/requirements/{id}/document", consumes=MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public VerificationChecklist.Document upload(@PathVariable Long id, @RequestParam("file") MultipartFile file) throws IOException { return documents.upload(id,file); }
+    @PostMapping(value="/api/verifications/me/supporting-documents", consumes=MediaType.MULTIPART_FORM_DATA_VALUE)
+    @ResponseStatus(HttpStatus.CREATED)
+    public VerificationChecklist.Document supporting(@RequestParam("file") MultipartFile file) throws IOException { return documents.uploadSupporting(file); }
     @GetMapping("/api/verifications/documents/{id}")
     public ResponseEntity<byte[]> download(@PathVariable Long id) throws IOException {
         var file=documents.download(id);

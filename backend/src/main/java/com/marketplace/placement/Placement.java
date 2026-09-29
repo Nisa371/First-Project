@@ -50,11 +50,30 @@ public class Placement extends CreatedEntity {
     @Column(nullable = true)
     private Instant endedAt;
 
+    private Instant candidateLeftAt;
+
+    public boolean isReplacementSourceEligible() {
+        return status == PlacementStatus.ACTIVE || (status == PlacementStatus.COMPLETED && candidateLeftAt != null);
+    }
+
     @Column(nullable = false)
     private boolean guaranteeEligible = false;
 
     @Column(nullable = true)
     private Instant guaranteeExpiresAt;
+
+    @Column(precision=14, scale=2, updatable=false)
+    private java.math.BigDecimal agreedFirstMonthSalary;
+    @Column(precision=3, scale=2, updatable=false)
+    private java.math.BigDecimal placementFeeRate;
+    @Column(precision=14, scale=2, updatable=false)
+    private java.math.BigDecimal placementFeeAmount;
+    @Column(updatable=false)
+    private Instant feeAgreementAcceptedAt;
+    @Column(updatable=false)
+    private Long acceptedByEmployerUserId;
+    @Column(length=40, updatable=false)
+    private String termsVersion;
 
     @Version
     @Setter(lombok.AccessLevel.NONE)

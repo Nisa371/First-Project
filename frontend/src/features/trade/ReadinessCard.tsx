@@ -7,7 +7,7 @@ const labels: Record<string, [string, string]> = {
   TRADE: ['Trade track', '/candidate/profile'], ACTIVE_ACCOUNT: ['Active account', '/candidate/profile'],
   VERIFIED: ['Platform verified', '/candidate/verification'], TRADE_SKILL: ['Trade skill', '/candidate/profile'],
   AVAILABLE: ['Available', '/candidate/profile'],
-  NOT_RESERVED: ['Not reserved', '/candidate/dashboard'], NO_ACTIVE_PLACEMENT: ['No active placement', '/candidate/dashboard'],
+  NOT_RESERVED: ['Not reserved', '/candidate/dashboard'],
 }
 export function ReadinessCard() {
   const tr = useTradeText()

@@ -39,15 +39,23 @@ public class VerificationDocuments {
     public record Decision(@NotNull VerificationStatus status, @Size(max=3000) String notes) {}
     public record Review(Long id, String ownerName, Role role, Long companyTypeId, String companyTypeName,
         String requirementName, VerificationStatus status, String reviewNote, String identityReference,
-        Instant submittedAt, Instant reviewedAt, Long reviewerId, boolean hasFile, boolean latest, boolean applicable) {}
+        Instant submittedAt, Instant reviewedAt, Long reviewerId, boolean hasFile, boolean latest, boolean applicable, boolean supportingDocument, String originalName) {}
     public record Download(byte[] bytes, String contentType) {}
     @PreAuthorize("hasAnyRole('CANDIDATE','EMPLOYER')")
     public VerificationChecklist.Checklist own() { return checklist.forUser(current.requireActive()); }
     @PreAuthorize("hasAnyRole('CANDIDATE','EMPLOYER')")
     @Transactional(rollbackFor=IOException.class)
     public VerificationChecklist.Document upload(Long requirementId, MultipartFile file) throws IOException {
+        return store(requirementId,file,false);
+    }
+    @PreAuthorize("hasRole('CANDIDATE')")
+    @Transactional(rollbackFor=IOException.class)
+    public VerificationChecklist.Document uploadSupporting(MultipartFile file) throws IOException {
+        return store(null,file,true);
+    }
+    private VerificationChecklist.Document store(Long requirementId, MultipartFile file, boolean supporting) throws IOException {
         var owner=users.findByIdForUpdate(current.requireActive().getId()).orElseThrow(VerificationChecklist::missing);
-        var requirement=checklist.applicable(owner).stream().filter(r -> r.getId().equals(requirementId)).findFirst()
+        var requirement=supporting ? null : checklist.applicable(owner).stream().filter(r -> r.getId().equals(requirementId)).findFirst()
             .orElseThrow(() -> new ApiException(400,"INVALID_REQUIREMENT","This requirement does not apply to your account."));
         String name=file.getOriginalFilename(), mime=file.getContentType();
         if(file.isEmpty() || file.getSize()>5*1024*1024 || name==null || name.length()>180 || name.isBlank()
@@ -58,7 +66,7 @@ public class VerificationDocuments {
         else if("image/png".equals(mime) && lower.endsWith(".png") && bytes.length>=8 && Arrays.equals(Arrays.copyOf(bytes,8),new byte[]{(byte)137,80,78,71,13,10,26,10})) ext=".png";
         else if("image/jpeg".equals(mime) && (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) && bytes.length>=3 && bytes[0]==(byte)255 && bytes[1]==(byte)216 && bytes[2]==(byte)255) ext=".jpg";
         else throw invalidFile();
-        var record=new VerificationRecord();record.setOwner(owner);record.setRequirement(requirement);
+        var record=new VerificationRecord();record.setOwner(owner);record.setRequirement(requirement);record.setSupportingDocument(supporting);
         if(owner.getRole()==Role.CANDIDATE) record.setCandidate(candidates.findByUserId(owner.getId()).orElseThrow(VerificationChecklist::missing));
         String stored=UUID.randomUUID()+ext;
         Files.createDirectories(root);
@@ -75,7 +83,7 @@ public class VerificationDocuments {
         String ownerName=owner.getRole()==Role.CANDIDATE?record.getCandidate().getFullName():
             employers.findByUserId(owner.getId()).orElseThrow(VerificationChecklist::missing).getCompanyName();
         String title=owner.getRole()==Role.CANDIDATE?"Candidate verification submitted":"Employer verification submitted";
-        String message=ownerName+" submitted "+requirement.getName()+" for review (submission #"+record.getId()+").";
+        String message=ownerName+" submitted "+(supporting?"Additional supporting document":requirement.getName())+" for review (submission #"+record.getId()+").";
         users.findByRoleAndAccountStatus(Role.ADMIN,AccountStatus.ACTIVE).forEach(admin ->
             notifications.afterCommit(admin.getId(),title,message));
         return checklist.document(record);
@@ -129,10 +137,10 @@ public class VerificationDocuments {
         var user=checklist.owner(v);var employer=user.getRole()==Role.EMPLOYER?employers.findByUserId(user.getId()).orElseThrow(VerificationChecklist::missing):null;
         var type=employer==null?null:employer.getCompanyType();
         String name=employer!=null?employer.getCompanyName():v.getCandidate().getFullName();
-        boolean applicable=checklist.applicable(user).stream().anyMatch(r -> checklist.matches(v,r));
+        boolean applicable=v.isSupportingDocument() || checklist.applicable(user).stream().anyMatch(r -> checklist.matches(v,r));
         return new Review(v.getId(),name,user.getRole(),type==null?null:type.getId(),type==null?null:type.getName(),
-            v.getRequirement()==null?"National ID (legacy)":v.getRequirement().getName(),v.getStatus(),v.getReviewerNotes(),v.getStoredName()==null?v.getIdentityReference():null,
-            v.getSubmittedAt(),v.getReviewedAt(),v.getReviewerUser()==null?null:v.getReviewerUser().getId(),v.getStoredName()!=null,checklist.latest(v),applicable);
+            v.isSupportingDocument()?"Additional supporting document":v.getRequirement()==null?"National ID (legacy)":v.getRequirement().getName(),v.getStatus(),v.getReviewerNotes(),v.getStoredName()==null?v.getIdentityReference():null,
+            v.getSubmittedAt(),v.getReviewedAt(),v.getReviewerUser()==null?null:v.getReviewerUser().getId(),v.getStoredName()!=null,checklist.latest(v),applicable,v.isSupportingDocument(),v.getOriginalName());
     }
     private Path path(String name) {
         if(!name.matches("[a-f0-9-]{36}\\.(pdf|png|jpg)")) throw VerificationChecklist.missing();

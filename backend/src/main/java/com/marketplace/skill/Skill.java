@@ -19,6 +19,11 @@ public class Skill extends BaseEntity {
     @Column(nullable = false, length = 120)
     private String category;
 
+    public String getCategory() {
+        return category != null && (category.equalsIgnoreCase("TECH") || category.equalsIgnoreCase("TRADE"))
+            ? category.toUpperCase(java.util.Locale.ROOT) : category;
+    }
+
     @Column(nullable = false)
     private boolean active = true;
 

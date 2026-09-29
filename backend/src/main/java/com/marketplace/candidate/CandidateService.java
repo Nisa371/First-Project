@@ -63,9 +63,9 @@ public class CandidateService {
     @PreAuthorize("hasRole('CANDIDATE')")
     public ProfileView addSkill(SkillRequest r) {
         var c = candidates.findByIdForUpdate(own().getId()).orElseThrow(CandidateService::missing);
-        var skill = skills.findById(r.skillId()).filter(s -> s.isActive()).orElseThrow(() -> missing());
-        if (c.getCandidateType()==CandidateType.TRADE && !"TRADE".equals(skill.getCategory()))
-            throw new ApiException(400,"INVALID_SKILL","Choose an active Trade skill.");
+        var skill = skills.findById(r.skillId()).filter(s -> s.isActive()).orElseThrow(() -> new ApiException(400,"INVALID_SKILL","Choose an active skill."));
+        if (!c.getCandidateType().name().equals(skill.getCategory()))
+            throw new ApiException(400,"INVALID_SKILL","Choose an active skill matching your candidate track.");
         if (candidateSkills.existsByCandidateIdAndSkillId(c.getId(), skill.getId()))
             throw new ApiException(409,"DUPLICATE_SKILL","This skill is already on your profile.");
         var link = new CandidateSkill(); link.setCandidate(c); link.setSkill(skill); link.setProficiencyLevel(r.proficiencyLevel());
@@ -78,7 +78,7 @@ public class CandidateService {
         candidateSkills.flush(); queue.synchronize(c.getId()); return view(c);
     }
     public List<SkillView> skillViews(Long id) {
-        return candidateSkills.findByCandidateId(id).stream().map(s -> new SkillView(s.getSkill().getId(),
+        return candidateSkills.findByCandidateId(id).stream().sorted(java.util.Comparator.comparing(s -> s.getSkill().getName(), String.CASE_INSENSITIVE_ORDER)).map(s -> new SkillView(s.getSkill().getId(),
             s.getSkill().getName(), s.getSkill().getCategory(), s.getProficiencyLevel())).toList();
     }
     private String verification(Long id) {

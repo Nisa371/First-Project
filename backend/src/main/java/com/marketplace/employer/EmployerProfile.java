@@ -23,6 +23,8 @@ public class EmployerProfile extends TimestampedEntity {
     @Column(nullable = false, length = 200)
     private String companyName;
 
+    private java.time.Instant employerNoticeAcknowledgedAt;
+
     // Retained solely for lossless migration of existing profiles.
     @Column(nullable = true, length = 120)
     private String industry;

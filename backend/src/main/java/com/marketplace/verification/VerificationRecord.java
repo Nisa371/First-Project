@@ -33,6 +33,9 @@ public class VerificationRecord extends BaseEntity {
     @JoinColumn(name = "requirement_id")
     private VerificationRequirement requirement;
 
+    @org.hibernate.annotations.ColumnDefault("false")
+    @Column(nullable=false) private boolean supportingDocument;
+
     @Column(length=80) private String storedName;
     @Column(length=180) private String originalName;
     @Column(length=80) private String contentType;

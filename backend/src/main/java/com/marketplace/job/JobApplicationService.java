@@ -88,14 +88,22 @@ public class JobApplicationService {
     }
     @PreAuthorize("hasRole('CANDIDATE')")
     public ApplicationView apply(Long jobId) {
-        var c=candidate();
+        var job=jobs.findByIdForUpdate(jobId).orElseThrow(CandidateService::missing);
+        var c=candidates.findByIdForUpdate(candidate().getId()).orElseThrow(CandidateService::missing);
+        entityManager.refresh(c);
         if(!"VERIFIED".equals(verifications.forUser(c.getUser()).status()))
             throw new ApiException(403,"VERIFICATION_REQUIRED","Candidate verification is required before applying for jobs.");
         if(c.getAvailability()!=Availability.AVAILABLE)
             throw new ApiException(403,"CANDIDATE_UNAVAILABLE","You are currently marked unavailable. Change your availability before applying for jobs.");
-        var j=jobs.findByIdForUpdate(jobId).orElseThrow(CandidateService::missing);
+        var j=job;
         if(!available(j)) throw conflict("JOB_CLOSED","This job is not accepting applications.");
         if(applications.existsByJobIdAndCandidateId(jobId,c.getId())) throw conflict("ALREADY_APPLIED","You already applied to this job. View My Applications.");
+        if(c.getCandidateType()!=j.getCandidateType()) throw conflict("CANDIDATE_TRACK_MISMATCH","Your candidate track does not match this job.");
+        var required=j.getRequiredSkill();
+        if(required==null || !required.isActive() || !j.getCandidateType().name().equals(required.getCategory()))
+            throw conflict("INVALID_REQUIRED_SKILL","This job does not have an active required skill matching its track.");
+        if(!skills.existsByCandidateIdAndSkillId(c.getId(),required.getId()))
+            throw conflict("REQUIRED_SKILL_MISSING","You need to add the required skill '"+required.getName()+"' to your profile before applying.");
         var a=new JobApplication();a.setJob(j);a.setCandidate(c);
         applications.saveAndFlush(a);
         notifications.afterCommit(j.getEmployer().getUser().getId(),"New application received",
@@ -126,7 +134,8 @@ public class JobApplicationService {
     @PreAuthorize("hasRole('EMPLOYER')")
     public List<Applicant> applicants(Long jobId) {
         ownedJob(jobId);return applications.findByJobIdOrderByCreatedAtDescIdDesc(jobId).stream().map(this::applicantView)
-            .sorted(java.util.Comparator.comparing(Applicant::finalScore).reversed()
+            .sorted(java.util.Comparator.comparing((Applicant a)->a.candidate().availability()!=Availability.AVAILABLE)
+                .thenComparing(java.util.Comparator.comparing(Applicant::finalScore).reversed())
                 .thenComparing(Applicant::appliedAt, java.util.Comparator.reverseOrder())
                 .thenComparing(Applicant::id, java.util.Comparator.reverseOrder())).toList();
     }
@@ -147,7 +156,7 @@ public class JobApplicationService {
             case "experienceAsc" -> java.util.Comparator.comparingInt((Ranked r)->r.row().getExperienceMonths());
             default -> throw invalid("Choose a supported applicant sort order.");
         };
-        order=order.thenComparing(r->r.row().getAppliedAt(),java.util.Comparator.reverseOrder())
+        order=java.util.Comparator.comparing((Ranked r)->r.row().getAvailability()!=Availability.AVAILABLE).thenComparing(order).thenComparing(r->r.row().getAppliedAt(),java.util.Comparator.reverseOrder())
             .thenComparing(r->r.row().getId(),java.util.Comparator.reverseOrder());
         var ranked=applications.applicantSummaries(jobId,input.status(),input.assessment(),
                 input.assessment()==com.marketplace.interview.AssessmentSession.Status.NOT_STARTED,input.minExperience(),
@@ -231,7 +240,7 @@ public class JobApplicationService {
         String label=type==null?null:type.isOther() && employer.getCustomCompanyType()!=null
             && !employer.getCustomCompanyType().isBlank()?employer.getCustomCompanyType():type.getName();
         return new PublicJob(j.getId(),j.getTitle(),j.getDescription(),employer.getCompanyName(),j.getLocation(),
-            j.getCandidateType(),j.getRequiredSkill()==null?null:j.getRequiredSkill().getName(),j.getStatus(),
+            j.getCandidateType(),j.getRequiredSkill()==null?null:j.getRequiredSkill().getId(),j.getRequiredSkill()==null?null:j.getRequiredSkill().getName(),j.getStatus(),
             j.getPublicExpectations(),j.getExpectedExperienceMonths(),j.getCreatedAt(),applicationId,status,
             applicationId!=null,type==null?null:type.getId(),label);
     }

@@ -14,17 +14,20 @@ public class ManagedCareerController {
     private final ReplacementQueueManager replacements;
     private final NotificationService notifications;
     public record Join(@NotNull @Positive Long skillId) {}
-    public record Hire(@NotNull @Positive Long jobId,@NotNull @Positive Long candidateId, @NotNull Boolean guaranteed) {}
+    public record Hire(@NotNull @Positive Long jobId,@NotNull @Positive Long candidateId, @NotNull Boolean guaranteed, com.marketplace.placement.PlacementFeeAgreement.Input agreement) {}
     public record Request(@NotNull @Positive Long placementId,@NotBlank @Size(max=2000) String reason) {}
     @GetMapping("/api/waiting-list/me") public List<QueueService.QueueView> queue() { return queue.mine(); }
     @PostMapping("/api/waiting-list/me") public QueueService.QueueView join(@Valid @RequestBody Join r) { return queue.join(r.skillId()); }
     @PostMapping("/api/waiting-list/{id}/leave") public void leave(@PathVariable Long id) { queue.leave(id); }
     @GetMapping("/api/admin/waiting-list") public List<QueueService.QueueView> allQueue() { return queue.all(); }
-    @GetMapping("/api/placements/me") public List<?> placements() { return placements.mine(); }
-    @PostMapping("/api/placements") public PlacementService.PlacementView hire(@Valid @RequestBody Hire r) { return placements.create(r.jobId(),r.candidateId(),r.guaranteed()); }
+    @GetMapping("/api/placements/me") public List<?> placements(@Valid @ModelAttribute com.marketplace.placement.ManagedRecordFilter filter) { return placements.mine(filter); }
+    @GetMapping("/api/placements/hiring-context") public PlacementService.HiringContext hiringContext(@RequestParam Long jobId) { return placements.hiringContext(jobId); }
+    @PostMapping("/api/placements") public PlacementService.PlacementView hire(@Valid @RequestBody Hire r) { return placements.create(r.jobId(),r.candidateId(),r.guaranteed(),r.agreement()); }
+    @PostMapping("/api/placements/{id}/leave") public PlacementService.CandidateHistory leavePlacement(@PathVariable Long id) { return placements.leave(id); }
+    @GetMapping("/api/jobs/{jobId}/applications/{applicationId}/experience") public List<PlacementService.CandidateHistory> experience(@PathVariable Long jobId,@PathVariable Long applicationId) { return placements.experience(jobId,applicationId); }
     @PostMapping("/api/placements/{id}/complete") public PlacementService.PlacementView completePlacement(@PathVariable Long id) { return placements.end(id,true); }
     @PostMapping("/api/placements/{id}/terminate") public PlacementService.PlacementView terminate(@PathVariable Long id) { return placements.end(id,false); }
-    @GetMapping({"/api/replacements","/api/admin/replacements"}) public List<ReplacementQueueManager.View> replacements() { return replacements.list(); }
+    @GetMapping({"/api/replacements","/api/admin/replacements"}) public List<ReplacementQueueManager.View> replacements(@Valid @ModelAttribute com.marketplace.placement.ManagedRecordFilter filter) { return replacements.list(filter); }
     @GetMapping("/api/replacements/{id}") public ReplacementQueueManager.View replacement(@PathVariable Long id) { return replacements.get(id); }
     @PostMapping("/api/replacements") public ReplacementQueueManager.View request(@Valid @RequestBody Request r) { return replacements.request(r.placementId(),r.reason()); }
     @PostMapping("/api/replacements/{id}/accept") public ReplacementQueueManager.View accept(@PathVariable Long id) { return replacements.accept(id); }

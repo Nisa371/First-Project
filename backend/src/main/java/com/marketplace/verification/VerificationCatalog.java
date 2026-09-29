@@ -24,7 +24,7 @@ public class VerificationCatalog implements ApplicationRunner {
         seed("TAX_DOCUMENT", "Tax Document", VerificationTarget.COMPANY_EMPLOYER);
         var nid = requirements.findByCode("CANDIDATE_NID").orElseThrow();
         for (var record : records.findByRequirementIsNull()) {
-            if (record.getCandidate() != null) {
+            if (record.getCandidate() != null && !record.isSupportingDocument()) {
                 record.setOwner(record.getCandidate().getUser()); record.setRequirement(nid);
             }
         }
