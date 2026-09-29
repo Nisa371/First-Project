@@ -33,6 +33,17 @@ public class CandidateProfile extends TimestampedEntity {
     @Column(nullable = true, length = 32)
     private String phone;
 
+    @Column(nullable = true, length = 254)
+    private String contactEmail;
+
+    public String resolvedPhone() {
+        return phone == null || phone.isBlank() ? user.getPhone() : phone;
+    }
+
+    public String resolvedContactEmail() {
+        return contactEmail == null || contactEmail.isBlank() ? user.getEmail() : contactEmail;
+    }
+
     @Column(nullable = true, length = 255)
     private String location;
 

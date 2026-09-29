@@ -50,7 +50,7 @@ public class CandidateService {
     }
     private ProfileView applyProfile(CandidateProfile c, ProfileRequest r) {
         StructuredCvService.url(r.portfolioUrl());
-        c.setFullName(r.fullName().trim()); c.setPhone(r.phone()); c.setLocation(r.location()); c.setBio(r.bio());
+        c.setFullName(r.fullName().trim()); c.setPhone(r.phone()); if (r.contactEmail() != null) c.setContactEmail(r.contactEmail().strip()); c.setLocation(r.location()); c.setBio(r.bio());
         c.setExperienceSummary(r.experienceSummary()); if(r.totalExperienceMonths()!=null) c.setTotalExperienceMonths(r.totalExperienceMonths()); c.setAvailability(r.availability());
         if (c.getCandidateType() == CandidateType.TECH) {
             boolean portfolioChanged = !java.util.Objects.equals(c.getPortfolioUrl(), r.portfolioUrl());
@@ -89,7 +89,7 @@ public class CandidateService {
     }
     public ProfileView view(CandidateProfile c) {
         var content = cvContent.forCandidate(c);
-        return new ProfileView(c.getId(),c.getCandidateType(),c.getFullName(),c.getPhone(),c.getLocation(),c.getBio(),
+        return new ProfileView(c.getId(),c.getCandidateType(),c.getFullName(),c.resolvedPhone(),c.resolvedContactEmail(),c.getLocation(),c.getBio(),
             c.getEducationSummary(),c.getExperienceSummary(),c.getTotalExperienceMonths(),c.getAvailability(),c.getPrimaryTradeCategory(),
             c.getPortfolioUrl(),c.getCvOriginalName(),skillViews(c.getId()),verification(c.getId()),results(c.getId()),CandidatePhotoService.url(c),content.structured() != null, content.usable());
     }

@@ -30,15 +30,16 @@ export function CandidateProfilePage() {
   function save(e: FormEvent) {
     e.preventDefault(); if (!p) return
     if (p.candidateType === 'TECH' && portfolioState(p.portfolioUrl) === 'invalid') { setFields({ portfolioUrl: 'Enter a complete http or https URL without credentials, for example https://example.com.' }); setSuccess(''); return }
-    const { fullName, phone, location, bio, educationSummary, experienceSummary, totalExperienceMonths, availability, primaryTradeCategory, portfolioUrl } = p
-    void action(() => api.put<Profile>('/candidates/me', { fullName, phone, location, bio, educationSummary, experienceSummary, totalExperienceMonths, availability, primaryTradeCategory, portfolioUrl: portfolioUrl?.trim() || '' }).then(r => r.data), tr("Your profile has been saved."), false)
+    const { fullName, phone, contactEmail, location, bio, educationSummary, experienceSummary, totalExperienceMonths, availability, primaryTradeCategory, portfolioUrl } = p
+    void action(() => api.put<Profile>('/candidates/me', { fullName, phone, contactEmail, location, bio, educationSummary, experienceSummary, totalExperienceMonths, availability, primaryTradeCategory, portfolioUrl: portfolioUrl?.trim() || '' }).then(r => r.data), tr("Your profile has been saved."), false)
   }
   return <Workspace title={tr("Make your skills stand out")} subtitle={tr("Tell employers what you do best. Your career track and platform review results are managed separately.")}>
     <LoadState {...state} />{!state.loading && !state.error && p && <><Feedback error={error} success={success} /><ProfileReadiness profile={savedProfile ?? p} />
     <div className="grid items-start gap-6 lg:grid-cols-[1.5fr_1fr]"><form className="surface space-y-5" onSubmit={save}><h2 className="text-xl font-bold">{tr("Profile details")}</h2>
       <fieldset disabled={busy} className="space-y-5">
       <Field name="fullName" label={tr("Full name")} value={p.fullName} onChange={v => change('fullName', v)} required maxLength={160} error={fields.fullName} />
-      <div className="grid gap-5 sm:grid-cols-2"><Field name="phone" label={tr("Phone")} value={p.phone} onChange={v => change('phone', v)} type="tel" maxLength={32} error={fields.phone} /><Field name="location" label={tr("Location")} value={p.location} onChange={v => change('location', v)} error={fields.location} /></div>
+      <div className="grid gap-5 sm:grid-cols-2"><Field name="phone" label={tr("Phone")} value={p.phone} onChange={v => change('phone', v)} type="tel" maxLength={32} error={fields.phone} /><Field name="contactEmail" label={tr("Email")} value={p.contactEmail} onChange={v => change('contactEmail', v)} type="email" maxLength={254} error={fields.contactEmail} /></div>
+      <div><Field name="location" label={tr("Location")} value={p.location} onChange={v => change('location', v)} error={fields.location} /></div>
       <Field name="bio" label={tr("About you")} value={p.bio} onChange={v => change('bio', v)} multiline maxLength={2000} error={fields.bio} />
       <Field name="experienceSummary" label={tr("Experience")} value={p.experienceSummary} onChange={v => change('experienceSummary', v)} multiline maxLength={2000} error={fields.experienceSummary} />
       <label className="block"><span className="field-label">{tr("Total experience (months)")}</span><input name="totalExperienceMonths" type="number" min={0} step={1} required className="form-input" value={p.totalExperienceMonths} onChange={e => change('totalExperienceMonths', Number(e.target.value))} />{fields.totalExperienceMonths && <span className="text-sm text-rose-700">{fields.totalExperienceMonths && tr("Enter a valid number of months.")}</span>}<span className="mt-1 block text-xs text-slate-500">{tr("Enter completed months of experience. Keep your description above.")}</span></label>

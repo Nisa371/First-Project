@@ -3,7 +3,7 @@ export const bySkillName = (a: { name: string }, b: { name: string }) => a.name.
 export interface Skill { id: number; name: string; category: string; proficiencyLevel?: string }
 export interface Result { score: number; recommendation: string }
 export interface Candidate { profilePhotoUrl: string | null; id: number; candidateType: 'TECH' | 'TRADE'; fullName: string; location: string; bio: string; experienceSummary: string; totalExperienceMonths: number; availability: 'AVAILABLE' | 'UNAVAILABLE'; primaryTradeCategory: string; portfolioUrl: string; skills: Skill[]; verificationStatus: string; releasedResults: Result[]; hasCv: boolean }
-export interface Profile extends Candidate { hasBuiltCv: boolean; cvAiReady: boolean; phone: string; educationSummary: string; cvOriginalName: string | null }
+export interface Profile extends Candidate { hasBuiltCv: boolean; cvAiReady: boolean; phone: string | null; contactEmail: string | null; educationSummary: string; cvOriginalName: string | null }
 export interface Company { companyName: string; companyTypeId: number | null; companyTypeName: string | null; companyTypeOther: boolean; companyTypeActive: boolean; customCompanyType: string | null; contactPhone: string; address: string; description: string }
 export type EmploymentType = 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'INTERNSHIP'
 export const employmentTypes: Record<EmploymentType, string> = { FULL_TIME: 'Full-time', PART_TIME: 'Part-time', CONTRACT: 'Contract', INTERNSHIP: 'Internship' }

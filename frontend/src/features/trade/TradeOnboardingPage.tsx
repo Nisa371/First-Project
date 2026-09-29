@@ -23,8 +23,8 @@ function Onboarding({ initial, catalog }: { initial: Profile; catalog: Skill[] }
   async function save() {
     setBusy(true); setError(''); setFields({})
     try {
-      const { fullName, phone, location, bio, experienceSummary, totalExperienceMonths, availability, primaryTradeCategory } = p
-      const updated = (await api.put<Profile>('/candidates/me', { fullName, phone, location, bio, experienceSummary, totalExperienceMonths, availability, primaryTradeCategory })).data
+      const { fullName, phone, contactEmail, location, bio, experienceSummary, totalExperienceMonths, availability, primaryTradeCategory } = p
+      const updated = (await api.put<Profile>('/candidates/me', { fullName, phone, contactEmail, location, bio, experienceSummary, totalExperienceMonths, availability, primaryTradeCategory })).data
       // Profile and skill endpoints are individually retryable; keep the confirmed profile if adding a skill fails.
       setP(updated)
       if (!updated.skills.some(s => s.id === skill)) setP((await api.post<Profile>('/candidates/me/skills', { skillId: skill, proficiencyLevel: 'Practising' })).data)

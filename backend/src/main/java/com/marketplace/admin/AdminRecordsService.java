@@ -32,9 +32,9 @@ public class AdminRecordsService {
     private record Catalog(Class<?> type, String[] search, String status) {}
     private Catalog catalog(String section) {
         return switch(section) {
-            case "users" -> new Catalog(User.class,new String[]{"email","role"},"accountStatus");
-            case "candidates" -> new Catalog(CandidateProfile.class,new String[]{"fullName","user.email","candidateType"},"user.accountStatus");
-            case "employers" -> new Catalog(EmployerProfile.class,new String[]{"companyName","user.email"},"user.accountStatus");
+            case "users" -> new Catalog(User.class,new String[]{"email","phone","role"},"accountStatus");
+            case "candidates" -> new Catalog(CandidateProfile.class,new String[]{"fullName","user.email","user.phone","candidateType"},"user.accountStatus");
+            case "employers" -> new Catalog(EmployerProfile.class,new String[]{"companyName","user.email","user.phone"},"user.accountStatus");
             case "jobs" -> new Catalog(Job.class,new String[]{"title","employer.companyName"},"status");
             case "applications" -> new Catalog(JobApplication.class,new String[]{"candidate.fullName","job.title"},"status");
             case "bookings" -> new Catalog(Booking.class,new String[]{"candidate.fullName","purpose"},"status");
@@ -63,7 +63,13 @@ public class AdminRecordsService {
         var predicates=new ArrayList<Predicate>();
         if(!search.isBlank()) {
             String pattern="%"+search.strip().toLowerCase(Locale.ROOT).replace("!","!!").replace("%","!%").replace("_","!_")+"%";
-            predicates.add(cb.or(Arrays.stream(c.search()).map(p->cb.like(cb.lower(path(root,p).as(String.class)),pattern,'!')).toArray(Predicate[]::new)));
+            var matches = new ArrayList<Predicate>();
+            Arrays.stream(c.search()).forEach(p -> matches.add(cb.like(cb.lower(path(root,p).as(String.class)),pattern,'!')));
+            if (c.type() == User.class) {
+                String phone = com.marketplace.auth.AuthService.normalizePhone(search);
+                if (phone != null) matches.add(cb.equal(root.get("phone"), phone));
+            }
+            predicates.add(cb.or(matches.toArray(Predicate[]::new)));
         }
         if(!status.isBlank()) {
             if(c.status().equals("active")) {
@@ -76,10 +82,15 @@ public class AdminRecordsService {
     private Path<?> path(Path<?> root,String name) { for(var part:name.split("\\.")) root=root.get(part); return root; }
     public Row get(String section,Long id) { current.requireActive(); var entity=em.find(catalog(section).type(),id); if(entity==null) throw CandidateService.missing(); return row(entity); }
     private Map<String,Object> fields(Object... pairs) { var map=new LinkedHashMap<String,Object>(); for(int i=0;i<pairs.length;i+=2) map.put((String)pairs[i],pairs[i+1]); return map; }
+    private String accountIdentifier(User user) {
+        if(user.getEmail()!=null && !user.getEmail().isBlank()) return user.getEmail().strip();
+        if(user.getPhone()!=null && !user.getPhone().isBlank()) return user.getPhone().strip();
+        return "User #"+user.getId();
+    }
     private Row row(Object entity) {
-        if(entity instanceof User u) return new Row(u.getId(),u.getEmail(),u.getRole().name(),u.getAccountStatus().name(),fields("role",u.getRole(),"createdAt",u.getCreatedAt(),"updatedAt",u.getUpdatedAt()));
-        if(entity instanceof CandidateProfile c) return new Row(c.getId(),c.getFullName(),c.getUser().getEmail(),c.getUser().getAccountStatus().name(),fields("userId",c.getUser().getId(),"candidateType",c.getCandidateType(),"fullName",c.getFullName(),"phone",c.getPhone(),"location",c.getLocation(),"bio",c.getBio(),"educationSummary",c.getEducationSummary(),"experienceSummary",c.getExperienceSummary(),"totalExperienceMonths",c.getTotalExperienceMonths(),"availability",c.getAvailability(),"primaryTradeCategory",c.getPrimaryTradeCategory(),"portfolioUrl",c.getPortfolioUrl(),"updatedAt",c.getUpdatedAt()));
-        if(entity instanceof EmployerProfile e) return new Row(e.getId(),e.getCompanyName(),e.getUser().getEmail(),e.getUser().getAccountStatus().name(),fields("userId",e.getUser().getId(),"companyName",e.getCompanyName(),"companyTypeId",e.getCompanyType()==null?null:e.getCompanyType().getId(),"companyTypeName",e.getCompanyType()==null?null:e.getCompanyType().getName(),"companyTypeOther",e.getCompanyType()!=null&&e.getCompanyType().isOther(),"companyTypeActive",e.getCompanyType()!=null&&e.getCompanyType().isActive(),"customCompanyType",e.getCustomCompanyType(),"contactPhone",e.getContactPhone(),"address",e.getAddress(),"description",e.getDescription(),"updatedAt",e.getUpdatedAt()));
+        if(entity instanceof User u) return new Row(u.getId(),accountIdentifier(u),u.getRole().name(),u.getAccountStatus().name(),fields("email",u.getEmail(),"phone",u.getPhone(),"role",u.getRole(),"createdAt",u.getCreatedAt(),"updatedAt",u.getUpdatedAt()));
+        if(entity instanceof CandidateProfile c) return new Row(c.getId(),c.getFullName(),accountIdentifier(c.getUser()),c.getUser().getAccountStatus().name(),fields("userId",c.getUser().getId(),"contactEmail",c.resolvedContactEmail(),"accountPhone",c.getUser().getPhone(),"candidateType",c.getCandidateType(),"fullName",c.getFullName(),"phone",c.resolvedPhone(),"location",c.getLocation(),"bio",c.getBio(),"educationSummary",c.getEducationSummary(),"experienceSummary",c.getExperienceSummary(),"totalExperienceMonths",c.getTotalExperienceMonths(),"availability",c.getAvailability(),"primaryTradeCategory",c.getPrimaryTradeCategory(),"portfolioUrl",c.getPortfolioUrl(),"updatedAt",c.getUpdatedAt()));
+        if(entity instanceof EmployerProfile e) return new Row(e.getId(),e.getCompanyName(),accountIdentifier(e.getUser()),e.getUser().getAccountStatus().name(),fields("userId",e.getUser().getId(),"email",e.getUser().getEmail(),"accountPhone",e.getUser().getPhone(),"companyName",e.getCompanyName(),"companyTypeId",e.getCompanyType()==null?null:e.getCompanyType().getId(),"companyTypeName",e.getCompanyType()==null?null:e.getCompanyType().getName(),"companyTypeOther",e.getCompanyType()!=null&&e.getCompanyType().isOther(),"companyTypeActive",e.getCompanyType()!=null&&e.getCompanyType().isActive(),"customCompanyType",e.getCustomCompanyType(),"contactPhone",e.getContactPhone(),"address",e.getAddress(),"description",e.getDescription(),"updatedAt",e.getUpdatedAt()));
         if(entity instanceof Job j) return new Row(j.getId(),j.getTitle(),j.getEmployer().getCompanyName(),j.effectiveStatus().name(),fields("employmentType",j.getEmploymentType(),"portalClosesAt",j.closingTime(),"employerRequestedEndDate",j.getEmployerRequestedEndDate(),"replacementWindowStartedAt",(j.getOriginalJob()==null?j:j.getOriginalJob()).getReplacementWindowStartedAt(),"replacementWindowExpiresAt",(j.getOriginalJob()==null?j:j.getOriginalJob()).getReplacementWindowExpiresAt(),"employerId",j.getEmployer().getId(),"title",j.getTitle(),"description",j.getDescription(),"location",j.getLocation(),"candidateType",j.getCandidateType(),"requiredSkillId",j.getRequiredSkill()==null?null:j.getRequiredSkill().getId(),"publicExpectations",j.getPublicExpectations(),"privateExpectations",j.getPrivateExpectations(),"expectedExperienceMonths",j.getExpectedExperienceMonths(),"createdAt",j.getCreatedAt(),"updatedAt",j.getUpdatedAt()));
         if(entity instanceof JobApplication a) { var result=applicationViews.adminView(a.getId()); return new Row(a.getId(),a.getCandidate().getFullName(),a.getJob().getTitle(),a.getStatus().name(),fields("candidateId",a.getCandidate().getId(),"jobId",a.getJob().getId(),"cvScore",a.getCvScore(),"portfolioScore",a.getPortfolioScore(),"assessmentScore",a.getAssessmentScore(),"experienceScore",result.experienceScore(),"finalScore",result.finalScore(),"evaluationStatus",result.evaluationStatus(),"assessmentStatus",result.assessmentStatus(),"createdAt",a.getCreatedAt(),"updatedAt",a.getUpdatedAt())); }
         if(entity instanceof PaymentTransaction p) return new Row(p.getId(),p.getReference(),p.getPayer().getEmail(),p.getStatus().name(),fields("purpose",p.getPurpose(),"amount",p.getAmount(),"currency",p.getCurrency(),"jobId",p.getJob()==null?null:p.getJob().getId(),"bookingId",p.getBooking()==null?null:p.getBooking().getId(),"createdAt",p.getCreatedAt(),"completedAt",p.getCompletedAt()));

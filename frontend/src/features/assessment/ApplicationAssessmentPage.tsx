@@ -1,10 +1,11 @@
-import { useTradeText } from '../trade/useTradeText'
+import { useIsTrade, useTradeText } from '../trade/useTradeText'
 import { assessmentLabel } from '../marketplace/api'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { api, apiFailure } from '../../services/api'
 import { useLoad } from '../marketplace/useLoad'
 import { Workspace, LoadState, Feedback, Empty } from '../marketplace/shared'
+import { Modal } from '../../components/Modal'
 import { HoldToTalk } from '../trade/HoldToTalk'
 
 interface Message { senderRole: 'AI' | 'CANDIDATE'; content: string; sequenceNumber: number; createdAt: string }
@@ -29,6 +30,8 @@ function Transcript({ messages }: { messages: Message[] }) {
 }
 export function ApplicationAssessmentPage() {
   const tr = useTradeText()
+  const trade = useIsTrade()
+  const [confirmStart, setConfirmStart] = useState(false)
 
   const { id } = useParams()
   const loader = useCallback(() => api.get<Session>(`/candidate/applications/${id}/assessment`, { timeout: 40000 }).then(r => ({ ...r.data, receivedAt: performance.now() })), [id])
@@ -79,6 +82,13 @@ export function ApplicationAssessmentPage() {
   return <Workspace title={s?.jobTitle ?? tr("Job assessment")} subtitle={tr("A job-specific interview. Answer in your own words; typing is always available.")}>
     <Link className="mb-5 inline-block font-semibold text-indigo-700" to={`/candidate/applications/${id}`}>{tr("← Application details")}</Link>
     {!error && <LoadState {...state} />}<Feedback error={error} />
+    {confirmStart && s?.canStart && !s.startedAt && <Modal title={trade ? 'শুরু করার আগে' : 'Before you start'} close={() => setConfirmStart(false)}>
+      <p lang={trade ? 'bn' : 'en'} className="leading-relaxed text-slate-600">{trade ? 'এই মূল্যায়নের সময় ৫ মিনিট। একবার শুরু করলে সময় আর থামানো, বিরতি দেওয়া বা নতুন করে শুরু করা যাবে না। তাই প্রস্তুত হলে তবেই শুরু করুন।' : 'This assessment has a 5-minute time limit. Once the assessment starts, the timer cannot be paused, stopped, or reset. Start only when you are ready.'}</p>
+      <div className="mt-6 flex flex-wrap justify-end gap-3">
+        <button type="button" className="button-secondary" autoFocus onClick={() => setConfirmStart(false)}>{trade ? 'এখন নয়' : 'Not now'}</button>
+        <button type="button" className="button-primary" disabled={busy} onClick={() => { setConfirmStart(false); void submit(true) }}>{trade ? 'মূল্যায়ন শুরু করুন' : 'Start assessment'}</button>
+      </div>
+    </Modal>}
     {s && <div className="mx-auto max-w-3xl space-y-6 pb-32" aria-busy={busy}>
       <section className="surface">
         {remaining !== null && <div className={`mb-4 flex items-center justify-between rounded-xl p-4 ${remaining <= 60 ? 'bg-amber-50 text-amber-900' : 'bg-indigo-50 text-indigo-900'}`}><span className="font-semibold">{tr('Time remaining')}</span><span role="timer" aria-label={tr('Time remaining')} className="text-2xl font-bold tabular-nums">{String(Math.floor(remaining / 60)).padStart(2, '0')}:{String(remaining % 60).padStart(2, '0')}</span></div>}
@@ -89,7 +99,7 @@ export function ApplicationAssessmentPage() {
         {s.status === 'COMPLETED' && <p role="status" className="mt-4 text-emerald-800">{tr("Assessment completed. Your responses have been submitted for this application.")}</p>}
         {s.status === 'FAILED' && <p role="status" className="mt-4 text-slate-700">{tr("Your interview is submitted. Evaluation could not finish; the employer can review its status. Answers are now locked.")}</p>}
         {!s.canStart && !s.canAnswer && !s.completedAt && <p className="mt-4 text-sm text-slate-600">{tr("This application is not currently eligible for an assessment.")}</p>}
-        {s.canStart && <div className="mt-4"><p className="mb-4 text-sm leading-relaxed text-slate-600">{tr("One interview per application, with up to")}{' '}{s.maxTurns}{' '}{tr("answers. You can return to this page to continue your saved conversation.")}</p><button className="button-primary" disabled={busy} onClick={() => void submit(true)}>{busy ? tr("Starting…") : tr("Start assessment")}</button></div>}
+        {s.canStart && <div className="mt-4"><p className="mb-4 text-sm leading-relaxed text-slate-600">{tr("One interview per application, with up to")}{' '}{s.maxTurns}{' '}{tr("answers. You can return to this page to continue your saved conversation.")}</p><button className="button-primary" disabled={busy} onClick={() => { if (s.startedAt) void submit(true); else setConfirmStart(true) }}>{busy ? tr("Starting…") : tr("Start assessment")}</button></div>}
       </section>
       {s.messages.length > 0 ? <Transcript messages={s.messages} /> : <Empty title={tr("Your conversation will appear here")}>{tr("The first question appears when the interview service starts your assessment.")}</Empty>}
       {s.canAnswer && <form className="surface space-y-5" onSubmit={e => { e.preventDefault(); void submit(false) }}>

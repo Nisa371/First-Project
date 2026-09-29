@@ -71,7 +71,7 @@ public class StructuredCvService {
     private View view(CandidateProfile candidate) {
         var cv = cvs.findByCandidateId(candidate.getId()).orElseGet(CandidateCv::new);
         var content = content(cv);
-        return new View(new Header(candidate.getCandidateType(), candidate.getFullName(), candidate.getUser().getEmail(), candidate.getPhone(),
+        return new View(new Header(candidate.getCandidateType(), candidate.getFullName(), candidate.resolvedContactEmail(), candidate.resolvedPhone(),
             candidate.getLocation(), CandidatePhotoService.url(candidate), candidate.getPortfolioUrl(),
             profiles.skillViews(candidate.getId())), content, cv.getUpdatedAt(), !cv.hasContent());
     }

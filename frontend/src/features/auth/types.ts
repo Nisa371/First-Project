@@ -3,7 +3,8 @@ export type CandidateType = 'TECH' | 'TRADE'
 export const candidateTrackLabel = (type: string | null | undefined) => type === 'TECH' ? 'Tech and Corporate' : type === 'TRADE' ? 'Trade' : type ?? ''
 export interface CurrentUser {
   id: number
-  email: string
+  email: string | null
+  phone: string | null
   role: Role
   candidateType: CandidateType | null
   displayName: string
@@ -12,7 +13,7 @@ export interface AuthResponse { token: string; tokenType: 'Bearer'; expiresIn: n
 export interface RegisterRequest {
   accountType: 'CANDIDATE' | 'EMPLOYER'
   candidateType?: CandidateType
-  email: string
+  identifier: string
   password: string
   fullName?: string
   companyTypeId?: number
