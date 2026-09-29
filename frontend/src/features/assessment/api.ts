@@ -25,6 +25,7 @@ export const assessmentApi = {
   book: (slotId: number, purpose: string, notes: string) => api.post<Booking>('/bookings', { slotId, purpose, notes }).then(r => r.data),
   cancel: (id: number) => api.post(`/bookings/${id}/cancel`),
   createSlot: (startTime: string, endTime: string, capacity: number) => api.post('/evaluator/appointment-slots', { startTime, endTime, capacity }),
+  editSlot: (id: number, startTime: string, endTime: string, capacity: number) => api.put(`/evaluator/appointment-slots/${id}`, { startTime, endTime, capacity }),
   closeSlot: (id: number) => api.post(`/evaluator/appointment-slots/${id}/close`),
 }
 export const time = (value: string) => new Date(value).toLocaleString('en-BD', { dateStyle: 'medium', timeStyle: 'short' })

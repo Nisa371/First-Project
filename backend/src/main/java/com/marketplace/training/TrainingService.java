@@ -34,7 +34,10 @@ public class TrainingService {
     private ReferralView view(Referral r) { return new ReferralView(r.getId(),r.getCandidate().getFullName(),view(r.getTrainingProgram()),r.getStatus(),r.getCreatedAt()); }
     public List<Program> catalog() {
         var u=account.requireActive();
-        return (u.getRole()==Role.ADMIN ? programs.findAll(org.springframework.data.domain.Sort.by("title")) : programs.findByActiveTrueOrderByTitleAsc()).stream().map(this::view).toList();
+        String track=u.getRole()==Role.CANDIDATE ? candidates.findByUserId(u.getId()).orElseThrow(CandidateService::missing).getCandidateType().name() : null;
+        return (u.getRole()==Role.ADMIN ? programs.findAll(org.springframework.data.domain.Sort.by("title")) : programs.findByActiveTrueOrderByTitleAsc()).stream()
+            .filter(p -> track==null || p.getSkills().stream().anyMatch(s -> track.equals(s.getCategory())))
+            .map(this::view).toList();
     }
     @Transactional public Program save(Long id,TrainingController.ProgramInput input) {
         admin();

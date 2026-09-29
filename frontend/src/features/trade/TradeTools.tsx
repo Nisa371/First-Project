@@ -1,13 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { useLocation } from 'react-router'
 import { api } from '../../services/api'
-import { recognitionConstructor, supportedField, insertTranscript, voiceErrors, type Recognition, type VoiceField } from './voice'
+import { HoldToTalk } from './HoldToTalk'
 interface Conversation { failureCode: string | null; messages: { role: 'USER' | 'ASSISTANT'; content: string }[] }
 const starters = ['কীভাবে চাকরির জন্য আবেদন করব?', 'ভেরিফিকেশনের জন্য কী লাগবে?', 'আমার প্রোফাইল কীভাবে সম্পূর্ণ করব?', 'সেশন কীভাবে বুক করব?']
 export function TradeTools() {
-  const { pathname } = useLocation()
-  const target = useRef<VoiceField | null>(null), speech = useRef<Recognition | null>(null)
-  const [listening, setListening] = useState(false), [voiceStatus, setVoiceStatus] = useState('')
   const [open, setOpen] = useState(false), [question, setQuestion] = useState(''), [isSending, setIsSending] = useState(false)
   const [conversation, setConversation] = useState<Conversation>({ failureCode: null, messages: [] })
   const [error, setError] = useState(''), [loading, setLoading] = useState(false)
@@ -16,21 +12,10 @@ export function TradeTools() {
   const refresh = useRef<AbortController | null>(null)
   const [historyError, setHistoryError] = useState('')
   const [historyRetry, setHistoryRetry] = useState(0)
-  const Constructor = recognitionConstructor()
   useEffect(() => {
     mounted.current = true
-    function focus(event: FocusEvent) {
-      const element = event.target
-      if (element instanceof HTMLElement && element.dataset.tradeMic === 'true') return
-      if (speech.current) dispose()
-      if (!(element instanceof Element) || !element.closest('[data-trade-workspace="true"]')) { target.current = null; return }
-      if (supportedField(element)) target.current = element
-      else if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) target.current = null
-    }
-    document.addEventListener('focusin', focus)
-    return () => { mounted.current = false; pending.current?.abort(); pending.current = null; refresh.current?.abort(); refresh.current = null; document.removeEventListener('focusin', focus); dispose() }
+    return () => { mounted.current = false; pending.current?.abort(); refresh.current?.abort() }
   }, [])
-  useEffect(() => { dispose(); target.current = null }, [pathname])
   useEffect(() => {
     if (!open) return
     input.current?.focus()
@@ -48,27 +33,6 @@ export function TradeTools() {
     return () => { controller.abort(); if (refresh.current === controller) refresh.current = null }
   }, [open, historyRetry])
 
-  function dispose() {
-    const current = speech.current
-    if (current) { current.onresult = null; current.onerror = null; current.onend = null; current.abort(); speech.current = null }
-    if (mounted.current) setListening(false)
-  }
-  function start() {
-    if (!Constructor || speech.current) return
-    const field = target.current
-    if (!field || !supportedField(field) || !field.isConnected) { setVoiceStatus('আগে যে ঘরে লিখতে চান, সেখানে চাপ দিন।'); return }
-    try {
-      const recognition = new Constructor(); speech.current = recognition
-      recognition.lang = 'bn-BD'; recognition.interimResults = false; recognition.continuous = true
-      recognition.onresult = event => {
-        for (let i = event.resultIndex; i < event.results.length; i++) if (event.results[i].isFinal) insertTranscript(field, event.results[i][0].transcript)
-      }
-      recognition.onerror = event => { setVoiceStatus(voiceErrors[event.error] ?? 'ভয়েস কাজ করছে না। লিখে এগিয়ে যান।'); dispose() }
-      recognition.onend = () => { speech.current = null; setListening(false) }
-      setVoiceStatus(''); setListening(true); recognition.start()
-    } catch { dispose(); setVoiceStatus('মাইক্রোফোন চালু হয়নি। লিখে এগিয়ে যান।') }
-  }
-  function stop() { try { speech.current?.stop() } catch { dispose() } }
   async function send() {
     if (!mounted.current || pending.current || isSending || loading || !question.trim()) return
     const controller = new AbortController()
@@ -102,7 +66,7 @@ export function TradeTools() {
     setQuestion('')
   }
 
-  function close() { dispose(); setOpen(false); trigger.current?.focus() }
+  function close() { setOpen(false); trigger.current?.focus() }
   return <aside lang="bn" aria-label="বাংলা সহায়তা" className="fixed bottom-3 right-3 z-40 flex max-w-[calc(100vw-1.5rem)] flex-col items-end gap-2 print:hidden">
     {open && <section role="dialog" aria-labelledby="trade-assistant-title" onKeyDown={e => { if (e.key === 'Escape') close() }} className="flex max-h-[65dvh] w-96 max-w-full flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
       <header className="flex items-center justify-between bg-slate-900 p-4 text-white"><h2 id="trade-assistant-title" className="font-bold">বাংলা সহকারী</h2><button type="button" className="min-h-11 rounded-lg px-3 focus-visible:ring-2" onClick={close} aria-label="সহকারী বন্ধ করুন">বন্ধ করুন ×</button></header>
@@ -113,11 +77,8 @@ export function TradeTools() {
       </div>
       <form className="space-y-2 border-t border-slate-200 p-4" onSubmit={e => { e.preventDefault(); void send() }}><label htmlFor="trade-question" className="field-label">আপনার প্রশ্ন</label><textarea ref={input} id="trade-question" rows={2} maxLength={2000} disabled={isSending} value={question} onChange={e => setQuestion(e.target.value)} className="form-input" placeholder="এখানে লিখুন বা মাইক্রোফোনে বলুন" /><button type="submit" disabled={loading || isSending || !question.trim()} className="button-primary w-full">{isSending ? 'পাঠানো হচ্ছে…' : 'পাঠান'}</button></form>
     </section>}
-    <div className="max-w-xs rounded-xl border border-slate-200 bg-white p-2 text-xs text-slate-600 shadow-sm" role="status">{!Constructor ? 'এই ব্রাউজারে ভয়েস নেই। লিখে এগিয়ে যান।' : voiceStatus || (listening ? 'শুনছি… ছেড়ে দিন বা থামান।' : 'লেখার ঘর বেছে মাইক ধরে বলুন। কিবোর্ডে একবার চাপ দিয়ে চালু/বন্ধ করুন।')}</div>
-    <div className="flex gap-2"><button ref={trigger} type="button" aria-expanded={open} aria-label="বাংলা সহকারী খুলুন" className="button-primary shadow-lg" onClick={() => open ? close() : setOpen(true)}>সহকারী</button>
-      <button title="ব্রাউজার অনলাইনে ভয়েস প্রক্রিয়া করতে পারে। আমরা অডিও সংরক্ষণ করি না।" data-trade-mic="true" type="button" disabled={!Constructor} aria-label={listening ? 'শুনছি… মাইক্রোফোন থামান' : 'কথা বলে লিখুন'} aria-pressed={listening} className={`button-secondary touch-none shadow-lg ${listening ? 'ring-2 ring-teal-600' : ''}`}
-        onPointerDown={e => { if (e.button !== 0) return; e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); start() }} onPointerUp={stop} onPointerCancel={dispose} onLostPointerCapture={stop}
-        onClick={e => { if (e.detail === 0) { if (speech.current) stop(); else start() } }} 
-        >{listening ? '● শুনছি…' : '🎙 কথা বলে লিখুন'}</button></div>
+    <div className="flex items-end gap-2"><button ref={trigger} type="button" aria-expanded={open} aria-label="বাংলা সহকারী খুলুন" className="button-primary shadow-lg" onClick={() => open ? close() : setOpen(true)}>সহকারী</button>
+      <HoldToTalk />
+    </div>
   </aside>
 }

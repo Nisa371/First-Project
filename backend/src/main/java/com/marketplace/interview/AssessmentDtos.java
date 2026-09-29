@@ -10,6 +10,6 @@ public final class AssessmentDtos {
     public record Answer(@NotBlank @Size(max=MAX_ANSWER_LENGTH) String response) {}
     public record Message(String senderRole, String content, int sequenceNumber, Instant createdAt) {}
     public record SessionView(Long id, Long applicationId, String jobTitle, String status, int currentTurn, int maxTurns,
-        Instant startedAt, Instant completedAt, String failureCode, boolean canStart, boolean canAnswer, List<Message> messages) {}
+        Instant startedAt, Instant deadlineAt, Instant serverNow, Instant completedAt, String failureCode, boolean canStart, boolean canAnswer, List<Message> messages) {}
     public record EmployerView(SessionView session, java.math.BigDecimal assessmentScore, String summary) {}
 }

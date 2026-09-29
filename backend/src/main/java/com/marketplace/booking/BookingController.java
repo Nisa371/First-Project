@@ -16,6 +16,7 @@ public class BookingController {
     @PostMapping("/bookings/{id}/cancel") public BookingView cancel(@PathVariable Long id) { return service.cancel(id); }
     @GetMapping("/evaluator/appointment-slots") public List<SlotView> ownSlots() { return service.ownSlots(); }
     @PostMapping("/evaluator/appointment-slots") @ResponseStatus(HttpStatus.CREATED) public SlotView create(@Valid @RequestBody SlotRequest r) { return service.create(r); }
+    @PutMapping("/evaluator/appointment-slots/{id}") public SlotView edit(@PathVariable Long id, @Valid @RequestBody SlotRequest r) { return service.edit(id,r); }
     @PostMapping("/evaluator/appointment-slots/{id}/close") public SlotView close(@PathVariable Long id) { return service.close(id); }
     @GetMapping("/evaluator/bookings") public List<BookingView> appointments() { return service.appointments(); }
 }

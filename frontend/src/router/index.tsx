@@ -6,7 +6,6 @@ import { MyApplicationsPage, ApplicationDetailPage } from '../features/marketpla
 import { CandidateJobsPage, CandidateJobPage } from '../features/marketplace/ExploreJobsPage'
 import { PlacementsPage, ReplacementsPage, AdminQueuePage, NotificationsPage } from '../features/placement/ManagedPages'
 import { VerificationPage, VerificationQueuePage, VerificationReviewPage } from '../features/trade/VerificationPages'
-import { EvaluatorDashboard, EvaluationPage } from '../features/assessment/EvaluatorPages'
 import { BookingPage } from '../features/assessment/BookingPage'
 import { CandidateDashboard, EmployerDashboard } from '../features/marketplace/DashboardPage'
 import { CandidateProfilePage } from '../features/marketplace/CandidateProfilePage'
@@ -29,7 +28,7 @@ export const router = createBrowserRouter([
     { path: '/register', element: <AuthPage key="register" mode="register" /> },
     ...(['CANDIDATE', 'EMPLOYER', 'EVALUATOR', 'ADMIN'] as Role[]).map(role => ({
       element: <ProtectedRoute role={role} />,
-      children: [{ path: `/${role.toLowerCase()}/dashboard`, element: role === 'CANDIDATE' ? <CandidateDashboard /> : role === 'EMPLOYER' ? <EmployerDashboard /> : role === 'EVALUATOR' ? <EvaluatorDashboard /> : <AdminPage /> }],
+      children: [{ path: `/${role.toLowerCase()}/dashboard`, element: role === 'CANDIDATE' ? <CandidateDashboard /> : role === 'EMPLOYER' ? <EmployerDashboard /> : role === 'EVALUATOR' ? <Navigate to="/evaluator/verifications" replace /> : <AdminPage /> }],
     })),
     { element: <ProtectedRoute role="CANDIDATE" />, children: [{ path: '/candidate/applications/:id', element: <ApplicationDetailPage /> }, { path: '/candidate/applications/:id/assessment', element: <ApplicationAssessmentPage /> }, { path: '/candidate/cv', element: <CvBuilderPage /> }, { path: '/candidate/cv/preview', element: <CvPreviewPage /> }, { path: '/candidate/payments/:id', element: <DemoPaymentPage /> }, { path: '/candidate/jobs', element: <CandidateJobsPage /> }, { path: '/candidate/jobs/:id', element: <CandidateJobPage /> }, { path: '/candidate/applications', element: <MyApplicationsPage /> }, { path: '/candidate/onboarding', element: <Navigate to="/candidate/profile" replace /> }, { path: '/candidate/verification', element: <VerificationPage /> }, { path: '/candidate/profile', element: <CandidateProfilePage /> }, { path: '/candidate/bookings', element: <BookingPage /> }] },
     { element: <ProtectedRoute role="EMPLOYER" />, children: [
@@ -43,7 +42,7 @@ export const router = createBrowserRouter([
       { path: '/employer/jobs/:jobId/applications/:id', element: <ApplicantDetailPage /> },
       { path: '/employer/candidates', element: <CandidateSearchPage /> },
     ] },
-    { element: <ProtectedRoute role="EVALUATOR" />, children: [{ path: '/evaluator/verifications', element: <VerificationQueuePage /> }, { path: '/evaluator/verifications/:id', element: <VerificationReviewPage /> }, { path: '/evaluator/attempts/:id', element: <EvaluationPage /> }, { path: '/evaluator/bookings', element: <BookingPage /> }] },
+    { element: <ProtectedRoute role="EVALUATOR" />, children: [{ path: '/evaluator/queue', element: <Navigate to="/evaluator/verifications" replace /> }, { path: '/evaluator/work-queue', element: <Navigate to="/evaluator/verifications" replace /> }, { path: '/evaluator/attempts', element: <Navigate to="/evaluator/verifications" replace /> }, { path: '/evaluator/verifications', element: <VerificationQueuePage /> }, { path: '/evaluator/verifications/:id', element: <VerificationReviewPage /> }, { path: '/evaluator/attempts/:id', element: <Navigate to="/evaluator/verifications" replace /> }, { path: '/evaluator/bookings', element: <BookingPage /> }] },
     ...(['CANDIDATE', 'EMPLOYER', 'ADMIN', 'EVALUATOR'] as Role[]).map(role => ({ element: <ProtectedRoute role={role} />, children: [
       { path: `/${role.toLowerCase()}/notifications`, element: <NotificationsPage /> },
       ...(role !== 'EMPLOYER' ? [{ path: `/${role.toLowerCase()}/training`, element: <TrainingPage /> }] : []),

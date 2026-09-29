@@ -82,8 +82,23 @@ public class BookingService {
     public SlotView close(Long id) {
         var s=slots.findByIdForUpdate(id).orElseThrow(BookingService::missing);
         if(s.getEvaluatorUser()==null || !s.getEvaluatorUser().getId().equals(current.requireActive().getId())) throw missing();
-        if(bookings.countBySlotIdAndStatus(id,BookingStatus.BOOKED)>0) throw conflict("A slot with bookings cannot be closed.");
         s.setActive(false); return slotView(s);
+    }
+    @PreAuthorize("hasRole('EVALUATOR')")
+    public SlotView edit(Long id, SlotRequest r) {
+        var u=current.requireActive();
+        users.findByIdForUpdate(u.getId()).orElseThrow(BookingService::missing);
+        var s=slots.findByIdForUpdate(id).orElseThrow(BookingService::missing);
+        if(s.getEvaluatorUser()==null || !s.getEvaluatorUser().getId().equals(u.getId())) throw missing();
+        if(!s.isActive() || !s.getStartTime().isAfter(Instant.now())) throw conflict("Only future, open slots can be edited.");
+        var start=r.startTime().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+        var end=r.endTime().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
+        if(!start.isAfter(Instant.now()) || !end.isAfter(start)) throw new ApiException(400,"INVALID_TIME","Choose a future start and a later end time.");
+        if(r.capacity()<bookings.countBySlotIdAndStatus(id,BookingStatus.BOOKED)) throw conflict("Capacity cannot be below the number of confirmed bookings.");
+        if(slots.existsByEvaluatorUserIdAndIdNotAndActiveTrueAndStartTimeLessThanAndEndTimeGreaterThan(u.getId(),id,end,start)) throw conflict("This overlaps one of your existing slots.");
+        if(bookings.hasConflictingSlotBookings(id,start,end)) throw conflict("This time overlaps another confirmed appointment for a booked candidate.");
+        s.setStartTime(start); s.setEndTime(end); s.setCapacity(r.capacity());
+        return slotView(slots.saveAndFlush(s));
     }
     private SlotView slotView(AppointmentSlot s) { return new SlotView(s.getId(),s.getStartTime(),s.getEndTime(),s.getCapacity(),
         Math.max(0,s.getCapacity()-bookings.countBySlotIdAndStatus(s.getId(),BookingStatus.BOOKED)),s.isActive()); }

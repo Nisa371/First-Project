@@ -53,10 +53,12 @@ public class ApplicationAssessmentService {
         return view(a,s);
     }
     @PreAuthorize("hasRole('CANDIDATE')")
+    @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED, noRollbackFor=AssessmentExpired.class)
     public SessionView answer(Long sessionId, int expectedTurn, Answer input) {
         var appId=sessions.applicationId(sessionId).orElseThrow(CandidateService::missing);
         var a=owned(appId,false);
         var s=sessions.findByJobApplicationId(appId).orElseThrow(CandidateService::missing);
+        if (expired(s)) { expire(s); throw new AssessmentExpired(); }
         requireAllowed(a);
         if (s.getStatus()!=IN_PROGRESS) throw conflict("ASSESSMENT_CLOSED","This assessment is not accepting answers.");
         if (s.getCurrentTurn()!=expectedTurn) throw conflict("STALE_ASSESSMENT_TURN","This turn was already answered. Reload the assessment.");
@@ -73,16 +75,20 @@ public class ApplicationAssessmentService {
                 var result=provider.generateNextTurn(context.turn(a,transcript,nextTurn,s.getMaxTurns()));
                 if (result==null) throw new AssessmentContextBuilder.InvalidOutput();
                 reply=context.visible(result.message(),a); complete=result.complete();
-            } catch (RuntimeException e) { s.setFailureCode(failure(e)); return view(a,s); }
+            } catch (RuntimeException e) {
+                if (!expired(s)) { s.setFailureCode(failure(e)); return view(a,s); }
+                // The answer reached the locked session before its deadline; retain it even if the provider timed out.
+                complete=true;
+            }
         }
-        // Commit candidate and AI messages together only after a usable turn response.
+        // Commit a usable turn together, or retain the accepted answer when the deadline ends the turn.
         messages.save(new AssessmentMessage(s,AssessmentMessage.SenderRole.CANDIDATE,answer,sequence));
         if (reply!=null) {
             messages.save(new AssessmentMessage(s,AssessmentMessage.SenderRole.AI,reply,sequence+1));
             transcript.add(new TranscriptEntry("AI",reply,sequence+1));
         }
         s.setCurrentTurn(nextTurn); s.setFailureCode(null);
-        if (complete) { s.setCompletedAt(Instant.now()); evaluate(s,transcript); }
+        if (complete || expired(s)) { s.setCompletedAt(expired(s) ? deadline(s) : Instant.now()); evaluate(s,transcript); }
         return view(a,s);
     }
     @PreAuthorize("hasRole('EMPLOYER')")
@@ -135,12 +141,33 @@ public class ApplicationAssessmentService {
             .map(m -> new TranscriptEntry(m.getSenderRole().name(),m.getContent(),m.getSequenceNumber())).toList();
     }
     private SessionView view(JobApplication a, AssessmentSession s) {
+        if (s!=null) expire(s);
         var transcript=s==null?List.<Message>of():messages.findByAssessmentSessionIdOrderBySequenceNumberAsc(s.getId()).stream()
             .map(m -> new Message(m.getSenderRole().name(),m.getContent(),m.getSequenceNumber(),m.getCreatedAt())).toList();
         return new SessionView(s==null?null:s.getId(),a.getId(),a.getJob().getTitle(),s==null?"NOT_STARTED":s.getStatus().name(),
             s==null?0:s.getCurrentTurn(),s==null?config.getMaxTurns():s.getMaxTurns(),s==null?null:s.getStartedAt(),
+            s==null?null:deadline(s),Instant.now(),
             s==null?null:s.getCompletedAt(),s==null?null:s.getFailureCode(),
             allowed(a) && (s==null || s.getStatus()==NOT_STARTED), allowed(a) && s!=null && s.getStatus()==IN_PROGRESS,transcript);
+    }
+    private Instant deadline(AssessmentSession s) { return s.getStartedAt()==null ? null : s.getStartedAt().plusSeconds(300); }
+    private boolean expired(AssessmentSession s) { return deadline(s)!=null && !Instant.now().isBefore(deadline(s)); }
+    private void expire(AssessmentSession s) {
+        if(s.getStatus()==IN_PROGRESS && expired(s)) {
+            s.setCompletedAt(deadline(s));
+            evaluate(s,transcript(s));
+        }
+    }
+    // Scheduler uses the same job/application lock order as candidate requests.
+    public void expireApplication(Long applicationId) {
+        var jobId=sessions.jobIdForApplication(applicationId).orElse(null);
+        if(jobId==null) return;
+        jobs.findByIdForUpdate(jobId).orElseThrow(CandidateService::missing);
+        applications.findForEvaluation(applicationId).orElseThrow(CandidateService::missing);
+        sessions.findByJobApplicationId(applicationId).ifPresent(this::expire);
+    }
+    private static final class AssessmentExpired extends ApiException {
+        AssessmentExpired() { super(409,"ASSESSMENT_EXPIRED","The five-minute assessment time has expired. Answers are locked."); }
     }
     private String failure(RuntimeException e) {
         if (e instanceof AiEvaluationUnavailableException) return "AI_PROVIDER_NOT_CONFIGURED";

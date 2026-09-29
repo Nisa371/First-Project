@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import jakarta.persistence.LockModeType;
 
 public interface AppointmentSlotRepository extends JpaRepository<AppointmentSlot, Long> {
+    boolean existsByEvaluatorUserIdAndIdNotAndActiveTrueAndStartTimeLessThanAndEndTimeGreaterThan(Long userId, Long id, Instant end, Instant start);
     List<AppointmentSlot> findByEvaluatorUserIdOrderByStartTimeAsc(Long userId);
     boolean existsByEvaluatorUserIdAndActiveTrueAndStartTimeLessThanAndEndTimeGreaterThan(Long userId, Instant end, Instant start);
     List<AppointmentSlot> findByActiveTrueAndStartTimeAfterOrderByStartTimeAsc(Instant now);

@@ -14,6 +14,15 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     boolean existsBySlotIdAndCandidateIdAndStatus(Long slotId, Long candidateId, BookingStatus status);
 
     @Query("""
+        select count(b) > 0 from Booking b where b.slot.id <> :slotId
+        and b.status = com.marketplace.booking.BookingStatus.BOOKED
+        and b.slot.startTime < :endTime and b.slot.endTime > :startTime
+        and b.candidate.id in (select existing.candidate.id from Booking existing
+            where existing.slot.id = :slotId and existing.status = com.marketplace.booking.BookingStatus.BOOKED)
+        """)
+    boolean hasConflictingSlotBookings(Long slotId, Instant startTime, Instant endTime);
+
+    @Query("""
             select count(b) > 0 from Booking b
             where b.candidate.id = :candidateId and b.status = com.marketplace.booking.BookingStatus.BOOKED
               and b.slot.startTime < :endTime and b.slot.endTime > :startTime
