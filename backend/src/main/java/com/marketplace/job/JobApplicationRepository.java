@@ -44,6 +44,13 @@ public interface JobApplicationRepository extends JpaRepository<JobApplication,L
         com.marketplace.interview.AssessmentSession.Status assessment, boolean notStarted, Integer minExperience, String search);
     @EntityGraph(attributePaths={"candidate", "job"})
     List<JobApplication> findByJobIdAndIdIn(Long jobId, List<Long> ids);
+    // Successful placements are the existing hire record; the application enum has no HIRED value.
+    @Query("select count(a) from JobApplication a where a.job.id=:jobId and a.status=com.marketplace.job.ApplicationStatus.SHORTLISTED and not exists (select p.id from Placement p where p.job=a.job and p.candidate=a.candidate and p.status<>com.marketplace.placement.PlacementStatus.PENDING)")
+    long countShortlistedNotHired(Long jobId);
+    @Query("select count(a) from JobApplication a where a.job.id=:jobId and exists (select p.id from Placement p where p.job=a.job and p.candidate=a.candidate and p.status<>com.marketplace.placement.PlacementStatus.PENDING)")
+    long countHired(Long jobId);
+    @Query("select count(p)>0 from Placement p where p.job.id=:jobId and p.candidate.id=:candidateId and p.status<>com.marketplace.placement.PlacementStatus.PENDING")
+    boolean isHired(Long jobId, Long candidateId);
     long countByJobId(Long jobId);
     long countByJobIdAndStatus(Long jobId,ApplicationStatus status);
     @Query("select a.job.id from JobApplication a where a.id=:id and a.candidate.user.id=:userId")

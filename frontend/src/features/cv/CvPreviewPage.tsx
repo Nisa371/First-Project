@@ -20,7 +20,7 @@ function CvDocument({ cv }: { cv: BuiltCv }) {
   const tr = useTradeText()
 
   const h = cv.header, c = cv.content
-  const links = [[tr("Portfolio"), h.portfolioUrl], [tr("LinkedIn"), c.linkedinUrl], [tr("GitHub"), c.githubUrl]].filter(([, url]) => url)
+  const links = [[tr("Portfolio"), h.portfolioUrl], ...(h.candidateType === 'TRADE' ? [] : [[tr("LinkedIn"), c.linkedinUrl], [tr("GitHub"), c.githubUrl]])].filter(([, url]) => url)
   return <article className="cv-document mx-auto max-w-[210mm] rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-12">
     <header className="flex flex-wrap items-start justify-between gap-6 border-b-2 border-slate-800 pb-6"><div className="min-w-0 flex-1"><h2 className="break-words text-3xl font-bold tracking-tight text-slate-900">{h.fullName}</h2><p className="mt-3 break-words text-sm text-slate-600">{[h.email, h.phone, h.location].filter(Boolean).join(' · ')}</p><div className="mt-3 flex flex-wrap gap-4 text-sm">{links.map(([label, url]) => <a className="break-all text-indigo-700 underline" key={label} href={url!} target="_blank" rel="noreferrer">{label}</a>)}</div></div>{h.profilePhotoUrl && <Avatar name={h.fullName} url={h.profilePhotoUrl} />}</header>
     {c.summary && <section className="mt-7"><h3 className="cv-heading">{tr("Professional summary")}</h3><p className="whitespace-pre-wrap break-words text-sm leading-7">{c.summary}</p></section>}

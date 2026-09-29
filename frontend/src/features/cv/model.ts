@@ -4,7 +4,7 @@ export type Section = 'education' | 'experience' | 'projects' | 'certifications'
 export type Entry = Record<string, string | boolean | null>
 export type CvContent = Record<Section, Entry[]> & { summary: string | null; linkedinUrl: string | null; githubUrl: string | null }
 export interface BuiltCv {
-  header: { fullName: string; email: string; phone: string | null; location: string | null; profilePhotoUrl: string | null; portfolioUrl: string | null; skills: Skill[] }
+  header: { candidateType: 'TECH' | 'TRADE'; fullName: string; email: string; phone: string | null; location: string | null; profilePhotoUrl: string | null; portfolioUrl: string | null; skills: Skill[] }
   content: CvContent; updatedAt: string | null; empty: boolean
 }
 interface CvField { key: string; label: string; type?: 'date' | 'url' | 'checkbox' | 'textarea'; required?: boolean; max?: number }

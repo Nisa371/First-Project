@@ -91,7 +91,7 @@ public class JobService {
     private JobView view(Job j) {
         return new JobView(j.getId(),j.getTitle(),j.getDescription(),j.getLocation(),j.getCandidateType(),
             j.getRequiredSkill()==null?null:j.getRequiredSkill().getId(),j.getRequiredSkill()==null?null:j.getRequiredSkill().getName(),
-            j.effectiveStatus(),applications.countByJobIdAndStatus(j.getId(),ApplicationStatus.SHORTLISTED),applications.countByJobId(j.getId()),j.getCreatedAt(),j.getPublicExpectations(),j.getPrivateExpectations(),j.getExpectedExperienceMonths(),j.getEmploymentType(),j.closingTime(),j.getEmployerRequestedEndDate(),j.getOriginalJob()!=null,
+            j.effectiveStatus(),applications.countShortlistedNotHired(j.getId()),applications.countHired(j.getId()),applications.countByJobId(j.getId()),j.getCreatedAt(),j.getPublicExpectations(),j.getPrivateExpectations(),j.getExpectedExperienceMonths(),j.getEmploymentType(),j.closingTime(),j.getEmployerRequestedEndDate(),j.getOriginalJob()!=null,
             placementService.replacementNeeded(j),placementService.original(j).getReplacementWindowStartedAt(),placementService.original(j).getReplacementWindowExpiresAt());
     }
     public List<CandidateDtos.CandidateCard> shortlist(Long id) {

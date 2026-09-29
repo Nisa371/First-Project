@@ -264,7 +264,7 @@ public class JobApplicationService {
     private Applicant applicantView(JobApplication a) { return applicantView(a,assessmentStatus(a)); }
     private Applicant applicantView(JobApplication a, String assessmentStatus) {
         var experience=MeritScoring.experience(a.getCandidate().getTotalExperienceMonths(),a.getJob().getExpectedExperienceMonths());
-        return new Applicant(a.getId(),a.getJob().getId(),a.getStatus(),a.getCreatedAt(),a.getUpdatedAt(),candidateViews.card(a.getCandidate()),
+        return new Applicant(a.getId(),a.getJob().getId(),a.getStatus(),applications.isHired(a.getJob().getId(),a.getCandidate().getId()),a.getCreatedAt(),a.getUpdatedAt(),candidateViews.card(a.getCandidate()),
             a.getCvScore(),a.getPortfolioScore(),experience,a.getAssessmentScore(),
             MeritScoring.finalScore(experience,a.getAssessmentScore(),a.getCvScore(),a.getPortfolioScore(),weightView(a.getJob())),
             MeritScoring.evaluationStatus(a.getCvScore(),a.getPortfolioScore(),a.getAssessmentScore()),

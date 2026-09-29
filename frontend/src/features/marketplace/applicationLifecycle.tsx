@@ -21,9 +21,9 @@ const tones: Record<ApplicationStatus, string> = {
   APPLIED: 'bg-sky-50 text-sky-800', UNDER_REVIEW: 'bg-indigo-50 text-indigo-800',
   SHORTLISTED: 'bg-emerald-50 text-emerald-800', REJECTED: 'bg-rose-50 text-rose-800', WITHDRAWN: 'bg-slate-100 text-slate-600',
 }
-export function ApplicationBadge({ status }: { status: ApplicationStatus }) {
+export function ApplicationBadge({ status, hired = false }: { status: ApplicationStatus; hired?: boolean }) {
   const tr = useTradeText()
-  return <span className={`badge ${tones[status]}`}>{tr(applicationLabels[status])}</span>
+  return <span className={`badge ${tones[hired ? 'SHORTLISTED' : status]}`}>{hired ? 'Hired' : tr(applicationLabels[status])}</span>
 }
 export function ApplicationAssessmentLink({ application: a }: { application: Application }) {
   const tr = useTradeText()

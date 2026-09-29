@@ -1,4 +1,4 @@
-import { useTradeText } from '../trade/useTradeText'
+import { useIsTrade, useTradeText } from '../trade/useTradeText'
 import { useEffect, useState } from 'react'
 import { Link, useBlocker } from 'react-router'
 import { api, apiFailure } from '../../services/api'
@@ -14,6 +14,7 @@ export function CvBuilderPage() {
   return <Workspace title={tr("Build your next opportunity")} subtitle={tr("Create a clear, professional CV. Save your changes, then preview or print your saved CV.")}><LoadState {...state} />{state.data && <CvEditor initial={state.data} />}</Workspace>
 }
 function CvEditor({ initial }: { initial: BuiltCv }) {
+  const trade = useIsTrade()
   const tr = useTradeText()
 
   const [saved, setSaved] = useState(initial), [draft, setDraft] = useState<CvContent>(initial.content)
@@ -38,7 +39,7 @@ function CvEditor({ initial }: { initial: BuiltCv }) {
     {saved.empty && <p className="rounded-xl bg-indigo-50 p-4 text-indigo-900">{tr("Your built CV is empty. Add a summary or your first entry below, then save.")}</p>}
     <Feedback error={error} success={success} />
     <form onSubmit={e => { e.preventDefault(); void save() }}><fieldset disabled={busy} className="space-y-6">
-      <section className="surface space-y-5"><h2 className="text-xl font-bold">{tr("Professional summary")}</h2><Field name="summary" label={tr("Introduce your strengths and career goals")} multiline maxLength={4000} value={draft.summary} onChange={v => setDraft(d => ({ ...d, summary: v }))} error={errors.summary} /><div className="grid gap-5 sm:grid-cols-2">{(['linkedinUrl', 'githubUrl'] as const).map(key => <Field key={key} name={key} label={key === 'linkedinUrl' ? tr("LinkedIn URL") : tr("GitHub URL")} type="url" maxLength={2048} value={draft[key]} onChange={v => setDraft(d => ({ ...d, [key]: v }))} error={errors[key]} />)}</div></section>
+      <section className="surface space-y-5"><h2 className="text-xl font-bold">{tr("Professional summary")}</h2><Field name="summary" label={tr("Introduce your strengths and career goals")} multiline maxLength={4000} value={draft.summary} onChange={v => setDraft(d => ({ ...d, summary: v }))} error={errors.summary} />{!trade && <div className="grid gap-5 sm:grid-cols-2">{(['linkedinUrl', 'githubUrl'] as const).map(key => <Field key={key} name={key} label={key === 'linkedinUrl' ? tr("LinkedIn URL") : tr("GitHub URL")} type="url" maxLength={2048} value={draft[key]} onChange={v => setDraft(d => ({ ...d, [key]: v }))} error={errors[key]} />)}</div>}</section>
       <section className="surface"><h2 className="text-xl font-bold">{tr("Skills")}</h2><p className="my-3 text-sm text-slate-600">{tr("Your CV uses the same skills as your profile.")}</p><div className="flex flex-wrap gap-2">{saved.header.skills.map(skill => <span key={skill.id} className="badge">{skill.name} · {tr(skill.proficiencyLevel)}</span>)}{!saved.header.skills.length && <p className="text-sm text-slate-500">{tr("No skills added. Add skills from My profile.")}</p>}</div></section>
       {sections.map(section => <section className="surface space-y-5" key={section.key}><div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-xl font-bold">{tr(section.label)} <span className="text-sm font-normal text-slate-500">({draft[section.key].length})</span></h2><button type="button" className="button-secondary" disabled={draft[section.key].length >= 30} onClick={() => entries(section.key, [...draft[section.key], Object.fromEntries(section.fields.map(f => [f.key, f.type === 'checkbox' ? false : f.type === 'date' ? null : '']))])}>{tr("+ Add")}{' '}{tr(section.singular)}</button></div>
         {!draft[section.key].length && <p className="text-sm text-slate-500">{tr("No")}{' '}{tr(section.label)} {tr("yet. Include what is relevant to you.")}</p>}

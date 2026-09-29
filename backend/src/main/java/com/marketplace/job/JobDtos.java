@@ -8,7 +8,7 @@ public final class JobDtos {
         @NotBlank @Size(max=255) String location, @NotNull CandidateType candidateType, @NotNull @Positive Long requiredSkillId,
         @Size(max=5000) String publicExpectations, @Size(max=5000) String privateExpectations, @Min(0) Integer expectedExperienceMonths, @NotNull EmploymentType employmentType, java.time.LocalDate employerRequestedEndDate) {}
     public record JobView(Long id, String title, String description, String location, CandidateType candidateType,
-        Long requiredSkillId, String requiredSkillName, JobStatus status, long shortlistCount, long applicationCount, Instant createdAt, String publicExpectations, String privateExpectations, int expectedExperienceMonths, EmploymentType employmentType, Instant portalClosesAt, java.time.LocalDate employerRequestedEndDate, boolean replacementJob, long replacementNeededCount, Instant replacementWindowStartedAt, Instant replacementWindowExpiresAt) {}
+        Long requiredSkillId, String requiredSkillName, JobStatus status, long shortlistCount, long hiredCount, long applicationCount, Instant createdAt, String publicExpectations, String privateExpectations, int expectedExperienceMonths, EmploymentType employmentType, Instant portalClosesAt, java.time.LocalDate employerRequestedEndDate, boolean replacementJob, long replacementNeededCount, Instant replacementWindowStartedAt, Instant replacementWindowExpiresAt) {}
     public record PublicJob(Long id, String title, String description, String companyName, String location,
         CandidateType candidateType, Long requiredSkillId, String requiredSkillName, JobStatus status, String publicExpectations,
         int expectedExperienceMonths, Instant createdAt, Long applicationId, ApplicationStatus applicationStatus, boolean hasApplied,
@@ -37,7 +37,7 @@ public final class JobDtos {
     public record ApplicantPage(java.util.List<Applicant> content, long totalElements, long totalApplicants,
         int page, int size, int totalPages) {}
     public record ApplicationView(Long id, PublicJob job, ApplicationStatus status, Instant appliedAt, Instant updatedAt, String assessmentStatus) {}
-    public record Applicant(Long id, Long jobId, ApplicationStatus status, Instant appliedAt, Instant updatedAt,
+    public record Applicant(Long id, Long jobId, ApplicationStatus status, boolean hired, Instant appliedAt, Instant updatedAt,
         com.marketplace.candidate.CandidateDtos.CandidateCard candidate,
         java.math.BigDecimal cvScore, java.math.BigDecimal portfolioScore, java.math.BigDecimal experienceScore,
         java.math.BigDecimal assessmentScore, java.math.BigDecimal finalScore, String evaluationStatus,

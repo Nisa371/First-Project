@@ -25,7 +25,7 @@ public final class StructuredCvDtos {
         @NotNull @Size(max = 30) List<@NotNull @Valid Certification> certifications,
         @NotNull @Size(max = 30) List<@NotNull @Valid Language> languages,
         @NotNull @Size(max = 30) List<@NotNull @Valid Achievement> achievements) {}
-    public record Header(String fullName, String email, String phone, String location,
+    public record Header(CandidateType candidateType, String fullName, String email, String phone, String location,
         String profilePhotoUrl, String portfolioUrl, List<CandidateDtos.SkillView> skills) {}
     // A clean employment-data DTO, also suitable for future internal evaluation consumers.
     public record View(Header header, Content content, Instant updatedAt, boolean empty) {}
