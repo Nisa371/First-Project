@@ -6,7 +6,8 @@ import java.util.List;
 public class PaymentController {
     private final PaymentService service;
     public record EmptyRequest() {}
-    @PostMapping("/jobs/{id}/payment") public PaymentView job(@PathVariable Long id, @RequestBody(required=false) EmptyRequest body) { return service.job(id); }
+    public record PublicationRequest(java.time.LocalDate employerRequestedEndDate) {}
+    @PostMapping("/jobs/{id}/payment") public PaymentView job(@PathVariable Long id, @RequestBody(required=false) PublicationRequest body) { return service.job(id, body==null?null:body.employerRequestedEndDate()); }
     @PostMapping("/bookings/{id}/payment") public PaymentView booking(@PathVariable Long id, @RequestBody(required=false) EmptyRequest body) { return service.booking(id); }
     @GetMapping("/payments/me") public List<PaymentView> mine() { return service.mine(); }
     @GetMapping("/payments/{id}") public PaymentView get(@PathVariable Long id) { return service.get(id); }

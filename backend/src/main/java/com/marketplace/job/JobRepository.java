@@ -12,6 +12,9 @@ public interface JobRepository extends JpaRepository<Job, Long>, org.springframe
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @org.springframework.data.jpa.repository.Query("select j from Job j where j.id=:id")
     Optional<Job> findByIdForUpdate(Long id);
+    List<Job> findByReplacementWindowStartedAtIsNullAndOriginalJobIsNull();
+    List<Job> findByStatus(JobStatus status);
+    Optional<Job> findFirstByOriginalJobIdOrderByIdAsc(Long id);
     List<Job> findByEmployerIdOrderByCreatedAtDesc(Long employerId);
     Optional<Job> findByIdAndEmployerUserId(Long id, Long userId);
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"employer", "employer.companyType", "requiredSkill"})

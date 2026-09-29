@@ -46,6 +46,8 @@ public class JobApplicationService {
             var user=employer.join("user");
             var predicates=new java.util.ArrayList<jakarta.persistence.criteria.Predicate>();
             predicates.add(cb.equal(root.get("status"),JobStatus.ACTIVE));
+            predicates.add(cb.greaterThan(root.get("portalClosesAt"),java.time.Instant.now()));
+            if(input.employmentType()!=null) predicates.add(cb.equal(root.get("employmentType"),input.employmentType()));
             predicates.add(cb.equal(user.get("role"),Role.EMPLOYER));
             predicates.add(cb.equal(user.get("accountStatus"),AccountStatus.ACTIVE));
             if(input.search()!=null && !input.search().isBlank()) {
@@ -217,7 +219,7 @@ public class JobApplicationService {
             throw invalid("Cannot change application status from "+a.getStatus()+" to "+status+".");
         if(status==ApplicationStatus.SHORTLISTED) {
             var c=a.getCandidate();
-            if(j.getStatus()!=JobStatus.ACTIVE) throw conflict("JOB_CLOSED","This job is closed.");
+            if(!j.portalOpen()) throw conflict("JOB_CLOSED","This job is closed.");
             if(c.getUser().getAccountStatus()!=AccountStatus.ACTIVE || c.getUser().getRole()!=Role.CANDIDATE
                 || c.getAvailability()!=Availability.AVAILABLE || c.getCandidateType()!=j.getCandidateType()
                 || (j.getRequiredSkill()!=null && !skills.existsByCandidateIdAndSkillId(c.getId(),j.getRequiredSkill().getId())))
@@ -233,16 +235,16 @@ public class JobApplicationService {
     private void clearShortlist(JobApplication a) { shortlists.findByJobIdAndCandidateId(a.getJob().getId(),a.getCandidate().getId()).ifPresent(shortlists::delete); }
     private Job ownedJob(Long id) { return jobs.findOwnedForUpdate(id,current.requireActive().getId()).orElseThrow(CandidateService::missing); }
     private CandidateProfile candidate() { return candidates.findByUserId(current.requireActive().getId()).orElseThrow(CandidateService::missing); }
-    private boolean available(Job j) { return j.getStatus()==JobStatus.ACTIVE && j.getEmployer().getUser().getRole()==Role.EMPLOYER && j.getEmployer().getUser().getAccountStatus()==AccountStatus.ACTIVE; }
+    private boolean available(Job j) { return j.portalOpen() && j.getEmployer().getUser().getRole()==Role.EMPLOYER && j.getEmployer().getUser().getAccountStatus()==AccountStatus.ACTIVE; }
     private PublicJob publicView(Job j,JobApplication a) { return publicView(j,a==null?null:a.getId(),a==null?null:a.getStatus()); }
     private PublicJob publicView(Job j,Long applicationId,ApplicationStatus status) {
         var employer=j.getEmployer();var type=employer.getCompanyType();
         String label=type==null?null:type.isOther() && employer.getCustomCompanyType()!=null
             && !employer.getCustomCompanyType().isBlank()?employer.getCustomCompanyType():type.getName();
         return new PublicJob(j.getId(),j.getTitle(),j.getDescription(),employer.getCompanyName(),j.getLocation(),
-            j.getCandidateType(),j.getRequiredSkill()==null?null:j.getRequiredSkill().getId(),j.getRequiredSkill()==null?null:j.getRequiredSkill().getName(),j.getStatus(),
+            j.getCandidateType(),j.getRequiredSkill()==null?null:j.getRequiredSkill().getId(),j.getRequiredSkill()==null?null:j.getRequiredSkill().getName(),j.effectiveStatus(),
             j.getPublicExpectations(),j.getExpectedExperienceMonths(),j.getCreatedAt(),applicationId,status,
-            applicationId!=null,type==null?null:type.getId(),label);
+            applicationId!=null,type==null?null:type.getId(),label,j.getEmploymentType(),j.closingTime());
     }
     private ApplicationView ownView(JobApplication a) { return new ApplicationView(a.getId(),publicView(a.getJob(),a),a.getStatus(),a.getCreatedAt(),a.getUpdatedAt(),assessmentStatus(a)); }
     @PreAuthorize("hasRole('EMPLOYER')")

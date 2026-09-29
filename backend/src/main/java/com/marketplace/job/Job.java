@@ -75,5 +75,36 @@ public class Job extends TimestampedEntity {
     @Column(nullable = false)
     private JobStatus status = JobStatus.DRAFT;
 
+    @Enumerated(EnumType.STRING)
+    private EmploymentType employmentType; // Legacy jobs remain explicitly unspecified until edited.
+    private java.time.Instant activatedAt;
+    private java.time.Instant portalClosesAt;
+    private java.time.LocalDate employerRequestedEndDate;
+    private java.time.Instant replacementWindowStartedAt;
+    private java.time.Instant replacementWindowExpiresAt;
+    private Integer replacementGuaranteeDaysSnapshot;
+    @ManyToOne(fetch=FetchType.LAZY)
+    @JoinColumn(name="original_job_id")
+    private Job originalJob;
+
+    public java.time.Instant closingTime() {
+        if (portalClosesAt != null) return portalClosesAt;
+        if (originalJob != null) return originalJob.getReplacementWindowExpiresAt();
+        var start = activatedAt != null ? activatedAt : getCreatedAt();
+        return start == null ? null : start.atZone(java.time.ZoneOffset.UTC).plusMonths(1).toInstant();
+    }
+    public boolean portalOpen() {
+        var deadline=closingTime();
+        return status==JobStatus.ACTIVE && deadline!=null && java.time.Instant.now().isBefore(deadline);
+    }
+    public JobStatus effectiveStatus() { return status==JobStatus.ACTIVE && !portalOpen()?JobStatus.CLOSED:status; }
+    public static java.time.Instant closingDate(java.time.LocalDate requested, java.time.Instant now) {
+        var maximum=now.atZone(java.time.ZoneOffset.UTC).plusMonths(1).toInstant();
+        var end=requested==null?maximum:requested.atStartOfDay(java.time.ZoneId.of("Asia/Dhaka")).toInstant();
+        if(!end.isAfter(now) || end.isAfter(maximum))
+            throw new com.marketplace.common.api.ApiException(400,"INVALID_END_DATE","Job post ending date must be after publication and no later than one month after publication (Bangladesh time).");
+        return end;
+    }
+
 }
 

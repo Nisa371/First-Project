@@ -6,16 +6,16 @@ public final class JobDtos {
     private JobDtos() {}
     public record JobRequest(@NotBlank @Size(max=200) String title, @NotBlank @Size(max=5000) String description,
         @NotBlank @Size(max=255) String location, @NotNull CandidateType candidateType, @NotNull @Positive Long requiredSkillId,
-        @Size(max=5000) String publicExpectations, @Size(max=5000) String privateExpectations, @Min(0) Integer expectedExperienceMonths) {}
+        @Size(max=5000) String publicExpectations, @Size(max=5000) String privateExpectations, @Min(0) Integer expectedExperienceMonths, @NotNull EmploymentType employmentType, java.time.LocalDate employerRequestedEndDate) {}
     public record JobView(Long id, String title, String description, String location, CandidateType candidateType,
-        Long requiredSkillId, String requiredSkillName, JobStatus status, long shortlistCount, long applicationCount, Instant createdAt, String publicExpectations, String privateExpectations, int expectedExperienceMonths) {}
+        Long requiredSkillId, String requiredSkillName, JobStatus status, long shortlistCount, long applicationCount, Instant createdAt, String publicExpectations, String privateExpectations, int expectedExperienceMonths, EmploymentType employmentType, Instant portalClosesAt, java.time.LocalDate employerRequestedEndDate, boolean replacementJob, long replacementNeededCount, Instant replacementWindowStartedAt, Instant replacementWindowExpiresAt) {}
     public record PublicJob(Long id, String title, String description, String companyName, String location,
         CandidateType candidateType, Long requiredSkillId, String requiredSkillName, JobStatus status, String publicExpectations,
         int expectedExperienceMonths, Instant createdAt, Long applicationId, ApplicationStatus applicationStatus, boolean hasApplied,
-        Long companyTypeId, String companyTypeName) {}
+        Long companyTypeId, String companyTypeName, EmploymentType employmentType, Instant portalClosesAt) {}
     public record JobSearch(@Size(max=200) String search, @Size(max=255) String location,
         @Positive Long companyTypeId, @Min(0) Integer minExperience, @Min(0) Integer maxExperience,
-        CandidateType candidateTrack, @Min(0) Integer page, @Min(1) @Max(50) Integer size, String sort) {
+        CandidateType candidateTrack, EmploymentType employmentType, @Min(0) Integer page, @Min(1) @Max(50) Integer size, String sort) {
         public JobSearch {
             page = page == null ? 0 : page;
             size = size == null ? 12 : size;
@@ -25,7 +25,7 @@ public final class JobDtos {
     public record JobPage(java.util.List<PublicJob> content, long totalElements, int page, int size, int totalPages) {}
     public record ApplicantSearch(ApplicationStatus status,
         com.marketplace.interview.AssessmentSession.Status assessment,
-        @DecimalMin("0") java.math.BigDecimal minScore, @Min(0) Integer minExperience,
+        @DecimalMin("0") @DecimalMax("4") java.math.BigDecimal minScore, @Min(0) Integer minExperience,
         @Size(max=200) String search, @Min(0) Integer page, @Min(1) @Max(50) Integer size,
         @Pattern(regexp="scoreDesc|scoreAsc|newest|oldest|experienceDesc|experienceAsc") String sort) {
         public ApplicantSearch {

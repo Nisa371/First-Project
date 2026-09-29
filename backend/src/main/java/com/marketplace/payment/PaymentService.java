@@ -21,24 +21,28 @@ public class PaymentService {
     private final PaymentRepository payments;
     private final DemoPaymentPrices prices;
     private final JobRepository jobs;
+    private final com.marketplace.placement.PlacementService placementService;
     private final com.marketplace.replacement.ReplacementRequestRepository replacements;
     private final BookingRepository bookings;
     private final CandidateProfileRepository candidates;
     private final AppointmentSlotRepository slots;
 
     @PreAuthorize("hasRole('EMPLOYER')")
-    public PaymentView job(Long id) {
+    public PaymentView job(Long id, java.time.LocalDate endingDate) {
         var u=current.requireActive();
         var j=jobs.findOwnedForUpdate(id,u.getId()).orElseThrow(PaymentService::missing);
         if(!"VERIFIED".equals(verifications.forUser(j.getEmployer().getUser()).status()))
             throw new ApiException(403,"VERIFICATION_REQUIRED","Employer verification is required before posting jobs.");
         if(replacements.findByFreeReplacementJobId(id).isPresent()) throw conflict("This replacement vacancy does not require publication payment.");
-        if(j.getStatus()!=JobStatus.DRAFT) throw conflict("Only unpaid drafts need a posting payment.");
-        var p=payments.findByJobId(id).orElseGet(() -> {
+        if(j.effectiveStatus()==JobStatus.ACTIVE) throw conflict("This portal is already active.");
+        if(j.getEmploymentType()==null) throw conflict("Choose an employment type by editing the job before publication.");
+        if(j.effectiveStatus()==JobStatus.CLOSED) j.setEmployerRequestedEndDate(endingDate);
+        else if(endingDate!=null) j.setEmployerRequestedEndDate(endingDate);
+        Job.closingDate(j.getEmployerRequestedEndDate(),Instant.now());
+        var p=payments.findByJobId(id).filter(existing -> existing.getStatus()==PaymentStatus.PENDING).orElseGet(() -> {
             var payment=new PaymentTransaction(); payment.setPayer(u); payment.setJob(j);
             payment.setPurpose(PaymentPurpose.JOB_POSTING); payment.setAmount(prices.jobPostingFee()); return initialize(payment);
         });
-        if(p.getStatus()==PaymentStatus.CANCELLED) { p.setStatus(PaymentStatus.PENDING); p.setCompletedAt(null); }
         return view(p);
     }
     @PreAuthorize("hasRole('CANDIDATE')")
@@ -77,7 +81,9 @@ public class PaymentService {
             if(j!=null) {
                 if(!"VERIFIED".equals(verifications.forUser(j.getEmployer().getUser()).status()))
                     throw new ApiException(403,"VERIFICATION_REQUIRED","Employer verification is required before posting jobs.");
-                if(j.getStatus()!=JobStatus.DRAFT) throw conflict("This job is no longer an unpaid draft.");
+                if(j.effectiveStatus()==JobStatus.ACTIVE || j.getOriginalJob()!=null) throw conflict("This job cannot be published using this payment.");
+                if(j.getEmploymentType()==null) throw conflict("Select an employment type before publication.");
+                Job.closingDate(j.getEmployerRequestedEndDate(),Instant.now());
             } else {
                 if(b.getStatus()!=BookingStatus.PENDING_PAYMENT) throw conflict("This booking is no longer pending.");
                 var s=b.getSlot();
@@ -87,7 +93,10 @@ public class PaymentService {
             }
         }
         p.setStatus(cancel ? PaymentStatus.CANCELLED : PaymentStatus.SUCCESS); p.setCompletedAt(Instant.now());
-        if(j!=null && !cancel) j.setStatus(JobStatus.ACTIVE);
+        if(j!=null && !cancel) {
+            if(j.getStatus()==JobStatus.ACTIVE) placementService.releaseUnhiredApplicants(j);
+            var now=Instant.now(); j.setActivatedAt(now); j.setPortalClosesAt(Job.closingDate(j.getEmployerRequestedEndDate(),now)); j.setStatus(JobStatus.ACTIVE);
+        }
         if(b!=null && b.getStatus()==BookingStatus.PENDING_PAYMENT) b.setStatus(cancel ? BookingStatus.CANCELLED : BookingStatus.BOOKED);
         return view(p);
     }
@@ -104,7 +113,11 @@ public class PaymentService {
     private PaymentView view(PaymentTransaction p) {
         return new PaymentView(p.getId(),p.getReference(),p.getPurpose(),p.getAmount(),p.getCurrency(),p.getStatus(),p.getCreatedAt(),p.getCompletedAt(),
             p.getJob()==null?null:p.getJob().getId(),p.getBooking()==null?null:p.getBooking().getId(),
-            p.getJob()!=null?p.getJob().getTitle():p.getBooking().getPurpose()+" · "+p.getBooking().getSlot().getStartTime());
+            p.getJob()!=null?p.getJob().getTitle():p.getBooking().getPurpose()+" · "+p.getBooking().getSlot().getStartTime(),
+            p.getJob()==null?null:(p.getStatus()==PaymentStatus.SUCCESS?p.getJob().closingTime():previewClosing(p.getJob())),p.getJob()!=null && p.getJob().getEmployerRequestedEndDate()==null);
+    }
+    private Instant previewClosing(Job j) {
+        return j.getEmployerRequestedEndDate()==null?Instant.now().atZone(java.time.ZoneOffset.UTC).plusMonths(1).toInstant():j.getEmployerRequestedEndDate().atStartOfDay(java.time.ZoneId.of("Asia/Dhaka")).toInstant();
     }
     private static ApiException missing() { return new ApiException(404,"NOT_FOUND","Payment or resource not found."); }
     private static ApiException conflict(String message) { return new ApiException(409,"PAYMENT_CONFLICT",message); }

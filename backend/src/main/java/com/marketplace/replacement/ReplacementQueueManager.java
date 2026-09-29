@@ -17,7 +17,7 @@ import static com.marketplace.placement.PlacementService.conflict;
 /** Spring singleton orchestrator. Database candidate locks, not JVM/static state, protect reservations. */
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
 public class ReplacementQueueManager {
     private final com.marketplace.job.JobRepository jobs;
     private final com.marketplace.verification.VerificationChecklist verifications;
@@ -43,6 +43,9 @@ public class ReplacementQueueManager {
         lockMatching();
         var p=placements.findByIdForUpdate(placementId).orElseThrow(CandidateService::missing);
         current.requireOwner(p.getEmployer().getUser().getId());
+        if(p.getJob()==null) throw conflict("This placement has no original job guarantee.");
+        var origin=placementService.original(p.getJob()); placementService.ensureWindow(origin,Instant.now());
+        p.setGuaranteeExpiresAt(p.isGuaranteeEligible()?origin.getReplacementWindowExpiresAt():null);
         var now=Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS);
         if(!p.isReplacementSourceEligible()) throw conflict("Only active placements or placements left by the candidate are eligible for replacement.");
         if(!p.isGuaranteeEligible()) throw conflict("No replacement guarantee is included with this placement.");
@@ -63,14 +66,14 @@ public class ReplacementQueueManager {
     public View get(Long id) { var r=requests.findById(id).filter(v->visible(v,current.requireActive())).orElseThrow(CandidateService::missing); return view(r); }
     @PreAuthorize("hasRole('EMPLOYER')")
     public View accept(Long id) {
-        lockMatching(); var r=owned(id); requireTrade(r); if(r.getStatus()!=ReplacementStatus.CANDIDATE_SELECTED) throw conflict("Only a selected candidate can be confirmed.");
+        lockMatching(); var r=owned(id); placementService.requireGuarantee(r); requireTrade(r); if(r.getStatus()!=ReplacementStatus.CANDIDATE_SELECTED) throw conflict("Only a selected candidate can be confirmed.");
         if(r.getFreeReplacementJob()!=null && r.getFreeReplacementJob().getStatus()!=com.marketplace.job.JobStatus.ACTIVE) throw conflict("This replacement job is closed.");
         if(!stillEligible(r)) { release(r); match(r); return view(r); }
         r.setStatus(ReplacementStatus.ACCEPTED); publish(r,"REPLACEMENT_ACCEPTED","Replacement confirmed"); return view(r);
     }
     @PreAuthorize("hasRole('EMPLOYER')")
     public View complete(Long id) {
-        lockMatching(); var r=owned(id); requireTrade(r); if(r.getStatus()!=ReplacementStatus.ACCEPTED) throw conflict("Confirm the selected candidate before activation.");
+        lockMatching(); var r=owned(id); placementService.requireGuarantee(r); requireTrade(r); if(r.getStatus()!=ReplacementStatus.ACCEPTED) throw conflict("Confirm the selected candidate before activation.");
         if(r.getFreeReplacementJob()!=null && r.getFreeReplacementJob().getStatus()!=com.marketplace.job.JobStatus.ACTIVE) throw conflict("This replacement job is closed.");
         if(!stillEligible(r)) { release(r); match(r); return view(r); }
         var now=Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS); var p=new Placement(); p.setCandidate(r.getSelectedCandidate()); p.setEmployer(r.getEmployer()); p.setJob(r.getFreeReplacementJob()!=null?r.getFreeReplacementJob():r.getPlacement().getJob()); p.setSkill(r.getPlacement().getSkill());
@@ -87,15 +90,15 @@ public class ReplacementQueueManager {
         if(r.getStatus()==ReplacementStatus.COMPLETED || (r.getStatus()==ReplacementStatus.FAILED && !legacyTechFailure(r))) throw conflict("This request is already resolved.");
         // Historical failed requests no longer own any queue reservation.
         boolean releaseReservation=r.getStatus()!=ReplacementStatus.FAILED;
-        if(r.getFreeReplacementJob()!=null) { r.getFreeReplacementJob().setStatus(com.marketplace.job.JobStatus.CLOSED); placementService.releaseUnhiredApplicants(r.getFreeReplacementJob()); }
         r.setStatus(ReplacementStatus.CANCELLED); r.setFailureReason(null);
         publish(r,"REPLACEMENT_CANCELLED","Replacement cancelled");
         if(releaseReservation) release(r);
+        if(r.getFreeReplacementJob()!=null) placementService.refreshShared(r.getFreeReplacementJob());
         return view(r);
     }
     @PreAuthorize("hasRole('EMPLOYER')")
     public View retry(Long id) {
-        lockMatching(); var r=owned(id); requireTrade(r);
+        lockMatching(); var r=owned(id); placementService.requireGuarantee(r); requireTrade(r);
         if(r.getStatus()==ReplacementStatus.CANDIDATE_SELECTED || r.getStatus()==ReplacementStatus.ACCEPTED) return view(r);
         if(r.getStatus()!=ReplacementStatus.WAITING_FOR_CANDIDATE) throw conflict("Only a waiting request can be retried.");
         if(!r.getPlacement().isReplacementSourceEligible()) throw conflict("Placement is no longer available for this retry.");
@@ -110,7 +113,7 @@ public class ReplacementQueueManager {
         var r=requests.findByIdForUpdate(id).orElseThrow(CandidateService::missing); em.refresh(r); return r;
     }
     private void match(ReplacementRequest r) {
-        requireTrade(r);
+        placementService.requireGuarantee(r); requireTrade(r);
         r.setFailureReason(null); r.setStatus(ReplacementStatus.MATCHING);
         queueService.synchronizeTradeCandidates();
         var entries=queue.findBySkillIdAndStatusOrderByJoinedAtAscIdAsc(r.getPlacement().getSkill().getId(),QueueStatus.QUEUED);
@@ -118,6 +121,7 @@ public class ReplacementQueueManager {
         entries.stream().map(e->e.getCandidate().getId()).distinct().sorted().forEach(id->{ var c=candidates.findByIdForUpdate(id).orElseThrow(CandidateService::missing); em.refresh(c); });
         for(var entry:entries) {
             em.refresh(entry);
+            if(r.getFreeReplacementJob()!=null && placements.existsByJobIdAndCandidateId(r.getFreeReplacementJob().getId(),entry.getCandidate().getId())) continue;
             if(entry.getStatus()!=QueueStatus.QUEUED || !eligibility.check(entry.getCandidate().getId(),entry.getSkill().getId()).eligible()) continue;
             entry.setStatus(QueueStatus.RESERVED); entry.setReservedAt(Instant.now().truncatedTo(java.time.temporal.ChronoUnit.MILLIS)); queue.flush();
             r.setSelectedCandidate(entry.getCandidate()); r.setStatus(ReplacementStatus.CANDIDATE_SELECTED);
@@ -144,9 +148,17 @@ public class ReplacementQueueManager {
     private void createFreeJob(ReplacementRequest r) {
         if(r.getFreeReplacementJob()!=null) return;
         if(!"VERIFIED".equals(verifications.forUser(r.getEmployer().getUser()).status())) throw conflict("Employer verification is required before posting jobs.");
-        var original=r.getPlacement().getJob();
+        var original=placementService.original(r.getPlacement().getJob());
         if(original==null || original.getCandidateType()!=r.getPlacement().getCandidate().getCandidateType() || original.getRequiredSkill()==null || !original.getRequiredSkill().getId().equals(r.getPlacement().getSkill().getId()) || !original.getRequiredSkill().isActive() || !original.getCandidateType().name().equals(original.getRequiredSkill().getCategory())) throw conflict("The original job must have an active required skill matching its track.");
+        jobs.findByIdForUpdate(original.getId()).orElseThrow(CandidateService::missing);
+        var existing=jobs.findFirstByOriginalJobIdOrderByIdAsc(original.getId()).orElse(null);
+        if(existing!=null) {
+            existing.setStatus(com.marketplace.job.JobStatus.ACTIVE); existing.setPortalClosesAt(original.getReplacementWindowExpiresAt());
+            r.setFreeReplacementJob(existing); r.setStatus(ReplacementStatus.HIRING); return;
+        }
         var job=new com.marketplace.job.Job(); job.setEmployer(r.getEmployer());
+        job.setOriginalJob(original); job.setEmploymentType(original.getEmploymentType());
+        job.setActivatedAt(Instant.now()); job.setPortalClosesAt(original.getReplacementWindowExpiresAt());
         job.setTitle(original.getTitle()); job.setDescription(original.getDescription()); job.setLocation(original.getLocation());
         job.setCandidateType(original.getCandidateType()); job.setRequiredSkill(original.getRequiredSkill());
         job.setPublicExpectations(original.getPublicExpectations()); job.setPrivateExpectations(original.getPrivateExpectations());

@@ -16,7 +16,7 @@ import java.util.*;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
 public class PlacementService {
     private final PlacementRepository placements;
     private final com.marketplace.skill.SkillRepository catalog;
@@ -25,6 +25,7 @@ public class PlacementService {
     private final CandidateProfileRepository candidates;
     private final CandidateSkillRepository skills;
     private final JobRepository jobs;
+    private final com.marketplace.payment.PaymentRepository payments;
     private final ShortlistEntryRepository shortlists;
     private final JobApplicationRepository applications;
     private final WaitingListEntryRepository queue;
@@ -34,7 +35,7 @@ public class PlacementService {
     private final CurrentAccount current;
     private final ApplicationEventPublisher events;
     public record PlacementView(Long id, Long candidateId, String candidateName, String company, String job,
-        String skill, PlacementStatus status, LocalDate startDate, boolean guaranteeEligible, Instant guaranteeExpiresAt, CandidateType candidateType, Long guaranteeDays, boolean replacementSourceEligible) {}
+        String skill, PlacementStatus status, LocalDate startDate, boolean guaranteeEligible, Instant guaranteeExpiresAt, CandidateType candidateType, Long guaranteeDays, boolean replacementSourceEligible, Instant replacementWindowStartedAt, long replacementNeededCount) {}
     public record CandidateHistory(Long id,String company,String job,String skill,PlacementStatus status,LocalDate startDate,Instant endDate) {}
     @PreAuthorize("hasAnyRole('CANDIDATE','EMPLOYER','ADMIN')")
     public List<?> mine(ManagedRecordFilter filter) {
@@ -67,7 +68,10 @@ public class PlacementService {
         var u=current.requireActive();
         catalog.findFirstByOrderByIdAsc().orElseThrow(CandidateService::missing);
         var j=jobs.findOwnedForUpdate(jobId,u.getId()).orElseThrow(CandidateService::missing);
-        var replacement=replacements.findByFreeReplacementJobId(jobId).orElse(null);
+        if(!j.portalOpen()) throw conflict("This job portal is closed.");
+        var replacement=outstanding(j).stream().findFirst().orElse(null);
+        if(j.getOriginalJob()!=null && replacement==null) throw conflict("No replacement positions remain.");
+        if(replacement!=null) requireGuarantee(replacement);
         if(replacement!=null) {
             placements.findByIdForUpdate(replacement.getPlacement().getId()).orElseThrow(CandidateService::missing);
             replacements.findByIdForUpdate(replacement.getId()).orElseThrow(CandidateService::missing);
@@ -85,7 +89,7 @@ public class PlacementService {
         if(c.getAvailability()!=Availability.AVAILABLE) throw conflict("This candidate is currently unavailable for another placement.");
         if(placements.existsByJobIdAndCandidateId(jobId,candidateId))
             throw conflict("This applicant has already been hired for this job. View the existing placement.");
-        if(j.getStatus()!=JobStatus.ACTIVE || j.getRequiredSkill()==null || !j.getRequiredSkill().isActive() || !j.getCandidateType().name().equals(j.getRequiredSkill().getCategory())
+        if(!j.portalOpen() || j.getRequiredSkill()==null || !j.getRequiredSkill().isActive() || !j.getCandidateType().name().equals(j.getRequiredSkill().getCategory())
             || !applications.existsByJobIdAndCandidateIdAndStatus(jobId,candidateId,ApplicationStatus.SHORTLISTED)
             || !shortlists.existsByJobIdAndCandidateId(jobId,candidateId) || c.getCandidateType()!=j.getCandidateType()
             || (c.getCandidateType()!=CandidateType.TRADE && (!skills.existsByCandidateIdAndSkillId(candidateId,j.getRequiredSkill().getId())
@@ -122,13 +126,14 @@ public class PlacementService {
     }
     // Call only after matching -> job -> original placement -> request locks and eligibility checks.
     public void completeReplacement(ReplacementRequest r, Placement p, Instant now) {
+        requireGuarantee(r);
         if(r.getReplacementPlacement()!=null || !r.getPlacement().isReplacementSourceEligible()
             || List.of(ReplacementStatus.COMPLETED,ReplacementStatus.CANCELLED,ReplacementStatus.FAILED).contains(r.getStatus()))
             throw conflict("This replacement request has already been resolved.");
         r.setReplacementPlacement(p); r.setSelectedCandidate(p.getCandidate());
         r.setStatus(ReplacementStatus.COMPLETED); r.setActualCompletionAt(now); r.setFailureReason(null);
         r.getPlacement().setStatus(PlacementStatus.REPLACED); if(r.getPlacement().getEndedAt()==null) r.getPlacement().setEndedAt(now);
-        if(r.getFreeReplacementJob()!=null) { r.getFreeReplacementJob().setStatus(JobStatus.CLOSED); releaseUnhiredApplicants(r.getFreeReplacementJob()); }
+        if(r.getFreeReplacementJob()!=null) refreshShared(r.getFreeReplacementJob());
         if(r.getTargetCompletionAt()!=null) r.setSlaStatus(now.isAfter(r.getTargetCompletionAt())?SlaStatus.BREACHED:SlaStatus.ON_TIME);
         queueService.synchronize(r.getPlacement().getCandidate().getId());
     }
@@ -152,7 +157,12 @@ public class PlacementService {
         p.setCandidate(candidate);
         candidate.setAvailability(Availability.UNAVAILABLE);
         p.setStatus(PlacementStatus.ACTIVE); p.setStartDate(LocalDate.ofInstant(now,ZoneOffset.UTC));
-        p.setGuaranteeExpiresAt(p.isGuaranteeEligible()?p.getStartDate().plusDays(guaranteePolicy.days()).atStartOfDay(ZoneOffset.UTC).toInstant():null);
+        if(p.getJob()!=null) {
+            var origin=original(p.getJob());
+            ensureWindow(origin,now);
+            p.setGuaranteeExpiresAt(p.isGuaranteeEligible()?origin.getReplacementWindowExpiresAt():null);
+        } else p.setGuaranteeExpiresAt(null);
+        if(p.getJob()!=null && !p.getJob().portalOpen()) throw conflict("This job portal is closed.");
         placements.saveAndFlush(p);
         for(var e:queue.findByCandidateIdAndStatusIn(p.getCandidate().getId(),List.of(QueueStatus.QUEUED,QueueStatus.RESERVED))) {
             e.setStatus(QueueStatus.EXITED); e.setExitReason("Placement activated");
@@ -197,16 +207,94 @@ public class PlacementService {
         }
     }
     public void closeSelections(Job job) {
-        var r=replacements.findByFreeReplacementJobId(job.getId()).orElse(null);
-        if(r!=null) {
-            placements.findByIdForUpdate(r.getPlacement().getId()).orElseThrow(CandidateService::missing);
-            replacements.findByIdForUpdate(r.getId()).orElseThrow(CandidateService::missing); em.refresh(r);
-            if(!List.of(ReplacementStatus.COMPLETED,ReplacementStatus.CANCELLED,ReplacementStatus.FAILED).contains(r.getStatus())) {
-                releaseReservation(r); r.setStatus(ReplacementStatus.CANCELLED); r.setFailureReason(null);
-            }
+        for(var r:outstanding(job)) {
+            releaseReservation(r); r.setStatus(ReplacementStatus.CANCELLED); r.setFailureReason("Replacement portal closed.");
         }
         releaseUnhiredApplicants(job);
     }
-    public PlacementView view(Placement p) { return new PlacementView(p.getId(),p.getCandidate().getId(),p.getCandidate().getFullName(),p.getEmployer().getCompanyName(),p.getJob()==null?null:p.getJob().getTitle(),p.getSkill().getName(),p.getStatus(),p.getStartDate(),p.isGuaranteeEligible(),p.getGuaranteeExpiresAt(),p.getCandidate().getCandidateType(),p.getGuaranteeExpiresAt()==null?null:java.time.temporal.ChronoUnit.DAYS.between(p.getStartDate(),LocalDate.ofInstant(p.getGuaranteeExpiresAt(),ZoneOffset.UTC)),p.isReplacementSourceEligible()); }
+    public PlacementView view(Placement p) { return new PlacementView(p.getId(),p.getCandidate().getId(),p.getCandidate().getFullName(),p.getEmployer().getCompanyName(),p.getJob()==null?null:p.getJob().getTitle(),p.getSkill().getName(),p.getStatus(),p.getStartDate(),p.isGuaranteeEligible(),p.getGuaranteeExpiresAt(),p.getCandidate().getCandidateType(),p.getJob()==null || original(p.getJob()).getReplacementGuaranteeDaysSnapshot()==null?null:original(p.getJob()).getReplacementGuaranteeDaysSnapshot().longValue(),p.isReplacementSourceEligible(),p.getJob()==null?null:original(p.getJob()).getReplacementWindowStartedAt(),p.getJob()==null?0:replacementNeeded(p.getJob())); }
+    public Job original(Job j) { return j.getOriginalJob()==null?j:j.getOriginalJob(); }
+    public void ensureWindow(Job origin, Instant now) {
+        jobs.findByIdForUpdate(origin.getId()).orElseThrow(CandidateService::missing);
+        if(origin.getReplacementWindowStartedAt()!=null) return;
+        // Preserve the earliest historical placement's policy when upgrading existing jobs.
+        var historical=placements.findByJobIdOrderByStartDateAscIdAsc(origin.getId()).stream().filter(p->p.getStartDate()!=null).findFirst().orElse(null);
+        var start=historical==null?now:historical.getStartDate().atStartOfDay(ZoneOffset.UTC).toInstant();
+        var end=historical==null?null:historical.getGuaranteeExpiresAt();
+        int days=end==null?(historical==null?guaranteePolicy.days():0):(int)Duration.between(start,end).toDays();
+        origin.setReplacementWindowStartedAt(start); origin.setReplacementGuaranteeDaysSnapshot(days);
+        origin.setReplacementWindowExpiresAt(end==null?start.plus(Duration.ofDays(days)):end);
+        for(var p:placements.findByJobIdOrderByStartDateAscIdAsc(origin.getId()))
+            if(p.isGuaranteeEligible()) p.setGuaranteeExpiresAt(origin.getReplacementWindowExpiresAt());
+    }
+    public void requireGuarantee(ReplacementRequest r) {
+        var job=r.getPlacement().getJob();
+        if(job==null) throw conflict("This placement has no original job guarantee.");
+        var origin=original(job); ensureWindow(origin,Instant.now());
+        if(!Instant.now().isBefore(origin.getReplacementWindowExpiresAt())) throw conflict("Replacement guarantee window expired.");
+    }
+    public List<ReplacementRequest> outstanding(Job job) {
+        return replacements.findByFreeReplacementJobIdOrderByRequestedAtAscIdAsc(job.getId()).stream()
+            .filter(r->!List.of(ReplacementStatus.COMPLETED,ReplacementStatus.CANCELLED,ReplacementStatus.FAILED).contains(r.getStatus()) && r.getReplacementPlacement()==null).toList();
+    }
+    public long replacementNeeded(Job job) {
+        var origin=original(job);
+        if(origin.getReplacementWindowExpiresAt()==null || !Instant.now().isBefore(origin.getReplacementWindowExpiresAt())) return 0;
+        var shared=job.getOriginalJob()!=null?job:jobs.findFirstByOriginalJobIdOrderByIdAsc(job.getId()).orElse(null);
+        return shared==null?0:outstanding(shared).size();
+    }
+    public void refreshShared(Job job) {
+        if(outstanding(job).isEmpty() || job.closingTime()==null || !Instant.now().isBefore(job.closingTime())) {
+            job.setStatus(JobStatus.CLOSED); releaseUnhiredApplicants(job);
+        }
+    }
+    public void upgradeLegacyPortals() {
+        if(catalog.findFirstByOrderByIdAsc().isEmpty()) return;
+        // Link historical free jobs first, including completed requests, without deleting their history.
+        var all=replacements.findAll(org.springframework.data.domain.Sort.by("requestedAt","id"));
+        for(var r:all) if(r.getFreeReplacementJob()!=null && r.getFreeReplacementJob().getOriginalJob()==null && r.getPlacement().getJob()!=null)
+            r.getFreeReplacementJob().setOriginalJob(original(r.getPlacement().getJob()));
+        jobs.flush();
+        for(var j:jobs.findByReplacementWindowStartedAtIsNullAndOriginalJobIsNull())
+            if(!placements.findByJobIdOrderByStartDateAscIdAsc(j.getId()).isEmpty()) ensureWindow(j,Instant.now());
+        for(var r:all) {
+            var old=r.getFreeReplacementJob(); if(old==null || old.getOriginalJob()==null) continue;
+            var origin=original(old); ensureWindow(origin,Instant.now());
+            old.setPortalClosesAt(origin.getReplacementWindowExpiresAt());
+            var shared=jobs.findFirstByOriginalJobIdOrderByIdAsc(origin.getId()).orElseThrow();
+            if(!old.getId().equals(shared.getId())) {
+                old.setStatus(JobStatus.CLOSED); releaseUnhiredApplicants(old);
+                // Keep completed historical links; move only the outstanding requests.
+                if(!List.of(ReplacementStatus.COMPLETED,ReplacementStatus.CANCELLED,ReplacementStatus.FAILED).contains(r.getStatus())) r.setFreeReplacementJob(shared);
+            }
+            if(r.getPlacement().isGuaranteeEligible()) r.getPlacement().setGuaranteeExpiresAt(origin.getReplacementWindowExpiresAt());
+        }
+        replacements.flush();
+        for(var r:all) if(r.getFreeReplacementJob()!=null) {
+            var shared=r.getFreeReplacementJob();
+            if(shared.getOriginalJob()!=null && jobs.findFirstByOriginalJobIdOrderByIdAsc(shared.getOriginalJob().getId()).orElseThrow().getId().equals(shared.getId()) && !outstanding(shared).isEmpty())
+                shared.setStatus(JobStatus.ACTIVE);
+        }
+        expirePortals();
+    }
+    // The same matching lock used by FIFO and hires serializes cleanup and shared-job creation.
+    public void expirePortals() {
+        if(catalog.findFirstByOrderByIdAsc().isEmpty()) return;
+        for(var reference:jobs.findByStatus(JobStatus.ACTIVE)) {
+            var job=jobs.findByIdForUpdate(reference.getId()).orElseThrow(CandidateService::missing);
+            em.refresh(job);
+            if(job.getActivatedAt()==null && job.getOriginalJob()==null)
+                job.setActivatedAt(payments.findFirstByJobIdAndStatusOrderByCompletedAtDesc(job.getId(),com.marketplace.payment.PaymentStatus.SUCCESS)
+                    .map(com.marketplace.payment.PaymentTransaction::getCompletedAt).orElse(job.getCreatedAt()));
+            if(job.getPortalClosesAt()==null) job.setPortalClosesAt(job.closingTime());
+            if(!job.portalOpen()) {
+                for(var r:outstanding(job)) {
+                    releaseReservation(r); r.setStatus(ReplacementStatus.CANCELLED);
+                    r.setFailureReason("Replacement guarantee window expired.");
+                }
+                job.setStatus(JobStatus.CLOSED); releaseUnhiredApplicants(job);
+            }
+        }
+    }
     public static ApiException conflict(String message) { return new ApiException(409,"INVALID_STATE",message); }
 }

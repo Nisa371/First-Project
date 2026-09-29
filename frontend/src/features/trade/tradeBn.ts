@@ -1,4 +1,12 @@
 export const tradeBn: Readonly<Record<string, string>> = {
+  'Applications close': 'আবেদনের শেষ সময়',
+  'Employment type': 'চাকরির ধরন',
+  'All employment types': 'সব ধরনের চাকরি',
+  'Full-time': 'পূর্ণকালীন',
+  'Part-time': 'খণ্ডকালীন',
+  'Contract': 'চুক্তিভিত্তিক',
+  'Internship': 'ইন্টার্নশিপ',
+  'Not specified': 'উল্লেখ করা হয়নি',
   "I have left this job": "আমি এই চাকরি ছেড়েছি",
   "Confirm leaving this job?": "এই চাকরি ছেড়ে দেওয়া নিশ্চিত করবেন?",
   "Confirm I left": "হ্যাঁ, আমি চাকরি ছেড়েছি",

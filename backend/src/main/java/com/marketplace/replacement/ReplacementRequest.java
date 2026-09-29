@@ -54,8 +54,8 @@ public class ReplacementRequest extends BaseEntity {
     @JoinColumn(name = "replacement_placement_id", nullable = true, unique = true)
     private Placement replacementPlacement;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "free_replacement_job_id", unique = true)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "free_replacement_job_id")
     private com.marketplace.job.Job freeReplacementJob;
 
     @Column(nullable = false, updatable = false)

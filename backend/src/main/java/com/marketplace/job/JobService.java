@@ -23,7 +23,6 @@ public class JobService {
     private final com.marketplace.replacement.ReplacementRequestRepository replacements;
     private final EmployerService employers;
     private final CurrentAccount current;
-    private final com.marketplace.verification.VerificationChecklist verifications;
     private final com.marketplace.payment.PaymentRepository payments;
     private final SkillRepository skills;
     private final ShortlistEntryRepository shortlists;
@@ -37,7 +36,7 @@ public class JobService {
         return view(jobs.saveAndFlush(j));
     }
     public JobView update(Long id, JobRequest r) {
-        var j=owned(id); requireOpen(j); requireCompatible(j,r); apply(j,r); return view(j);
+        var j=owned(id); requireCompatible(j,r); apply(j,r); return view(j);
     }
     public JobView close(Long id) { skills.findFirstByOrderByIdAsc().orElseThrow(CandidateService::missing); return closeJob(owned(id)); }
     private JobView closeJob(Job j) { var id=j.getId(); j.setStatus(JobStatus.CLOSED); placementService.closeSelections(j); payments.findByJobId(id).filter(p -> p.getStatus()==com.marketplace.payment.PaymentStatus.PENDING).ifPresent(p -> {
@@ -54,7 +53,7 @@ public class JobService {
     private final com.marketplace.employer.EmployerProfileRepository employerProfiles;
     @PreAuthorize("hasRole('ADMIN')")
     public JobView adminUpdate(Long id, JobRequest r) {
-        current.requireActive(); var j=jobs.findByIdForUpdate(id).orElseThrow(CandidateService::missing); requireOpen(j);
+        current.requireActive(); var j=jobs.findByIdForUpdate(id).orElseThrow(CandidateService::missing);
         requireCompatible(j,r);
         apply(j,r); return view(j);
     }
@@ -67,18 +66,20 @@ public class JobService {
     @PreAuthorize("hasRole('ADMIN')")
     public JobView adminActivate(Long id) {
         current.requireActive(); var j=jobs.findByIdForUpdate(id).orElseThrow(CandidateService::missing);
-        if(replacements.findByFreeReplacementJobId(id).isPresent()) throw new ApiException(409,"REPLACEMENT_JOB","Replacement vacancies are managed through their replacement request and cannot be reactivated.");
-        if(j.getEmployer().getUser().getAccountStatus()!=AccountStatus.ACTIVE || payments.findByJobId(id).filter(p -> p.getStatus()==com.marketplace.payment.PaymentStatus.SUCCESS).isEmpty())
-            throw new ApiException(409,"PAYMENT_REQUIRED","Activation requires an active employer and a successful demo posting payment.");
-        if(!"VERIFIED".equals(verifications.forUser(j.getEmployer().getUser()).status()))
-            throw new ApiException(403,"VERIFICATION_REQUIRED","Employer verification is required before posting jobs.");
-        j.setStatus(JobStatus.ACTIVE); return view(j);
+        throw new ApiException(409,"PAYMENT_REQUIRED","Publish or reopen through a new employer job-post payment.");
     }
+
     private Job owned(Long id) {
         return jobs.findOwnedForUpdate(id,current.requireActive().getId()).orElseThrow(CandidateService::missing);
     }
-    private void requireOpen(Job j) { if(j.getStatus()==JobStatus.CLOSED) throw new ApiException(409,"JOB_CLOSED","This job is closed. Create a new job to continue hiring."); }
     private void apply(Job j, JobRequest r) {
+        if(j.getOriginalJob()==null) {
+            if(j.effectiveStatus()==JobStatus.ACTIVE && !java.util.Objects.equals(j.getEmployerRequestedEndDate(),r.employerRequestedEndDate()))
+                throw new ApiException(409,"PORTAL_PERIOD_FIXED","The closing date cannot be changed during an active paid period.");
+            if(j.effectiveStatus()!=JobStatus.ACTIVE && r.employerRequestedEndDate()!=null) Job.closingDate(r.employerRequestedEndDate(),java.time.Instant.now());
+            j.setEmployerRequestedEndDate(r.employerRequestedEndDate());
+        }
+        j.setEmploymentType(r.employmentType());
         j.setPublicExpectations(r.publicExpectations()); j.setPrivateExpectations(r.privateExpectations());
         if(r.expectedExperienceMonths()!=null) j.setExpectedExperienceMonths(r.expectedExperienceMonths());
         j.setTitle(r.title().trim()); j.setDescription(r.description().trim()); j.setLocation(r.location().trim()); j.setCandidateType(r.candidateType());
@@ -90,7 +91,8 @@ public class JobService {
     private JobView view(Job j) {
         return new JobView(j.getId(),j.getTitle(),j.getDescription(),j.getLocation(),j.getCandidateType(),
             j.getRequiredSkill()==null?null:j.getRequiredSkill().getId(),j.getRequiredSkill()==null?null:j.getRequiredSkill().getName(),
-            j.getStatus(),applications.countByJobIdAndStatus(j.getId(),ApplicationStatus.SHORTLISTED),applications.countByJobId(j.getId()),j.getCreatedAt(),j.getPublicExpectations(),j.getPrivateExpectations(),j.getExpectedExperienceMonths());
+            j.effectiveStatus(),applications.countByJobIdAndStatus(j.getId(),ApplicationStatus.SHORTLISTED),applications.countByJobId(j.getId()),j.getCreatedAt(),j.getPublicExpectations(),j.getPrivateExpectations(),j.getExpectedExperienceMonths(),j.getEmploymentType(),j.closingTime(),j.getEmployerRequestedEndDate(),j.getOriginalJob()!=null,
+            placementService.replacementNeeded(j),placementService.original(j).getReplacementWindowStartedAt(),placementService.original(j).getReplacementWindowExpiresAt());
     }
     public List<CandidateDtos.CandidateCard> shortlist(Long id) {
         owned(id); return shortlists.findByJobIdAndJobEmployerUserId(id,current.requireActive().getId()).stream()

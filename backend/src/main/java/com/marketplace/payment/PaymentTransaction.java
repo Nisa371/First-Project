@@ -21,7 +21,7 @@ public class PaymentTransaction extends CreatedEntity {
     @Enumerated(EnumType.STRING) @Column(nullable=false) private PaymentStatus status = PaymentStatus.PENDING;
     @Column(nullable=false, unique=true, length=50, updatable=false) private String reference;
     private Instant completedAt;
-    @OneToOne(fetch=FetchType.LAZY) @JoinColumn(name="job_id", unique=true, updatable=false) private Job job;
+    @ManyToOne(fetch=FetchType.LAZY) @JoinColumn(name="job_id", updatable=false) private Job job;
     @OneToOne(fetch=FetchType.LAZY) @JoinColumn(name="booking_id", unique=true, updatable=false) private Booking booking;
     @PrePersist @PreUpdate void validateResource() {
         if (purpose == null || (purpose == PaymentPurpose.JOB_POSTING ? job == null || booking != null : booking == null || job != null))
